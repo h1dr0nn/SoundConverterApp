@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from .converter import ConversionRequest, SoundConverter
+from .resources import load_stylesheet, resource_path
 from .workers import ConversionWorker
 
 
@@ -124,7 +125,7 @@ class MainWindow(QWidget):
     # ------------------------------------------------------------------
     def _setup_ui(self) -> None:
         self.setWindowTitle("Sound Converter")
-        self.setWindowIcon(QIcon("app/resources/icons/app.svg"))
+        self.setWindowIcon(QIcon(str(resource_path("icons", "app.svg"))))
         self.resize(620, 480)
         self.setMinimumWidth(520)
 
@@ -225,13 +226,8 @@ class MainWindow(QWidget):
         main_layout.addLayout(footer_layout)
 
     def _apply_styles(self) -> None:
-        from PySide6.QtCore import QFile
-
         try:
-            file = QFile("app/resources/styles.qss")
-            if file.open(QFile.OpenModeFlag.ReadOnly):
-                data = file.readAll().data().decode("utf-8")
-                self.setStyleSheet(data)
+            self.setStyleSheet(load_stylesheet())
         except Exception as exc:  # pragma: no cover - style fallback
             print("Could not load styles:", exc)
 
