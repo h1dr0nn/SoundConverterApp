@@ -66,11 +66,25 @@ class SoundConverter:
         if AudioSegment is None:
             assert _IMPORT_ERROR is not None  # for type checkers
             missing_package = _IMPORT_ERROR.name or "pydub"
+
+            if missing_package in {"audioop", "pyaudioop"}:
+                return (
+                    False,
+                    "Phiên bản Python hiện tại thiếu mô-đun 'audioop' mà `pydub` cần. "
+                    "Bạn có thể cài đặt gói tương thích `audioop-lts` (ví dụ: chạy "
+                    "`pip install audioop-lts`) hoặc chuyển sang phiên bản Python 3.12 "
+                    "trở xuống vốn bao gồm sẵn 'audioop'.",
+                )
+
+            if missing_package == "pydub":
+                suggestion = "`pip install -r requirements.txt`"
+            else:
+                suggestion = f"`pip install {missing_package}`"
+
             return (
                 False,
                 "Không tìm thấy thư viện "
-                f"'{missing_package}'. Vui lòng cài đặt bằng lệnh "
-                "`pip install -r requirements.txt`.",
+                f"'{missing_package}'. Vui lòng cài đặt bằng lệnh {suggestion}.",
             )
 
         converted: List[Path] = []
