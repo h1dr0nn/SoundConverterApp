@@ -12,10 +12,13 @@ from typing import Iterable, List, Sequence, Tuple
 # crashing immediately on startup.
 try:  # pragma: no cover - exercised indirectly via integration
     from pydub import AudioSegment  # type: ignore
+    from pydub.utils import which as _find_executable  # type: ignore
 except ModuleNotFoundError as exc:  # pragma: no cover - handled gracefully
     AudioSegment = None  # type: ignore[assignment]
+    _find_executable = None
     _IMPORT_ERROR = exc
 else:
+    _find_executable = _find_executable
     _IMPORT_ERROR = None
 
 
@@ -89,6 +92,23 @@ class SoundConverter:
 
         converted: List[Path] = []
         destination_root.mkdir(parents=True, exist_ok=True)
+
+        if _find_executable is not None:
+            encoder = next(
+                (
+                    found
+                    for candidate in ("ffmpeg", "avconv")
+                    for found in (_find_executable(candidate),)
+                    if found
+                ),
+                None,
+            )
+            if encoder is None:
+                return (
+                    False,
+                    "Không tìm thấy chương trình 'ffmpeg' hoặc 'avconv'. "
+                    "Vui lòng cài đặt FFmpeg và đảm bảo nó nằm trong biến môi trường PATH.",
+                )
 
         for input_path, output_path in request.outputs():
             try:

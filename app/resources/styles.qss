@@ -29,7 +29,6 @@ QWidget {
     border: 2px dashed rgba(94, 129, 244, 0.7);
     background: rgba(94, 129, 244, 0.08);
     padding: 48px;
-    transition: all 120ms ease;
 }
 
 #dropArea[dropActive="true"] {
@@ -55,7 +54,6 @@ QPushButton {
     padding: 12px 20px;
     color: #f5f7ff;
     font-weight: 500;
-    transition: all 120ms ease;
 }
 
 QPushButton:hover {
@@ -98,7 +96,7 @@ QPushButton#exportButton {
 }
 
 QPushButton#exportButton:hover {
-    filter: brightness(1.08);
+    background: linear-gradient(135deg, #6c8df9, #8a5cff);
 }
 
 QLineEdit#outputEdit {
