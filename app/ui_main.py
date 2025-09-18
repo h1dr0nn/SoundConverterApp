@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Sequence, Set
 
-from PySide6.QtCore import QSettings, Qt, QThread, QUrl, Signal, Slot
+from PySide6.QtCore import QByteArray, QSettings, Qt, QThread, QUrl, Signal, Slot
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -186,6 +186,7 @@ class MainWindow(QWidget):
         self._setup_ui()
         self._apply_styles()
         self._restore_initial_state()
+        self._restore_geometry()
 
     # ------------------------------------------------------------------
     # Preferences helpers
@@ -203,12 +204,22 @@ class MainWindow(QWidget):
         self._pref_remember_destination = self._get_bool_setting(
             "remember_destination", True
         )
+        self._pref_auto_clear_selection = self._get_bool_setting(
+            "auto_clear_selection", False
+        )
+        self._pref_remember_geometry = self._get_bool_setting(
+            "remember_window_geometry", True
+        )
         last_directory = self._settings.value("last_output_directory", "")
         self._pref_last_output_directory: Optional[Path]
         if last_directory:
             self._pref_last_output_directory = Path(str(last_directory))
         else:
             self._pref_last_output_directory = None
+        self._saved_geometry: Optional[QByteArray]
+        self._saved_geometry = self._coerce_geometry_value(
+            self._settings.value("window_geometry")
+        )
 
     def _get_bool_setting(self, key: str, default: bool) -> bool:
         value = self._settings.value(key, default)
@@ -217,6 +228,19 @@ class MainWindow(QWidget):
         if value is None:
             return default
         return str(value).lower() in {"1", "true", "yes", "on"}
+
+    def _coerce_geometry_value(self, value: object) -> Optional[QByteArray]:
+        if isinstance(value, QByteArray):
+            return value
+        if isinstance(value, (bytes, bytearray)):
+            return QByteArray(value)
+        if isinstance(value, str):
+            try:
+                raw = QByteArray.fromHex(value.encode())
+            except Exception:
+                return None
+            return raw if len(raw) > 0 else None
+        return None
 
     def _save_last_output_directory(self, directory: Path) -> None:
         self._pref_last_output_directory = directory
@@ -381,6 +405,22 @@ class MainWindow(QWidget):
         )
         layout.addWidget(self.remember_destination_checkbox)
 
+        self.remember_geometry_checkbox = QCheckBox(
+            "Remember window size and position"
+        )
+        self.remember_geometry_checkbox.setObjectName("settingsCheckBox")
+        self.remember_geometry_checkbox.toggled.connect(
+            self._on_remember_geometry_toggled
+        )
+        layout.addWidget(self.remember_geometry_checkbox)
+
+        self.auto_clear_checkbox = QCheckBox(
+            "Clear file selection after a successful conversion"
+        )
+        self.auto_clear_checkbox.setObjectName("settingsCheckBox")
+        self.auto_clear_checkbox.toggled.connect(self._on_auto_clear_toggled)
+        layout.addWidget(self.auto_clear_checkbox)
+
         layout.addStretch()
 
         return tab
@@ -400,6 +440,10 @@ class MainWindow(QWidget):
         self.remember_destination_checkbox.setChecked(
             self._pref_remember_destination
         )
+        if hasattr(self, "remember_geometry_checkbox"):
+            self.remember_geometry_checkbox.setChecked(self._pref_remember_geometry)
+        if hasattr(self, "auto_clear_checkbox"):
+            self.auto_clear_checkbox.setChecked(self._pref_auto_clear_selection)
 
     def _set_combo_value(self, combo: QComboBox, value: str) -> None:
         index = combo.findText(value)
@@ -415,7 +459,18 @@ class MainWindow(QWidget):
             and self._pref_last_output_directory.exists()
         ):
             self.output_directory = self._pref_last_output_directory
-            self.output_edit.setText(str(self.output_directory))
+        else:
+            self.output_directory = None
+        self.clear_button.setEnabled(False)
+        self._update_output_preview()
+
+    def _restore_geometry(self) -> None:
+        if not self._pref_remember_geometry or not self._saved_geometry:
+            return
+        try:
+            self.restoreGeometry(self._saved_geometry)
+        except Exception:
+            pass
 
     def _apply_styles(self) -> None:
         try:
@@ -520,12 +575,10 @@ class MainWindow(QWidget):
             and self._pref_last_output_directory.exists()
         ):
             self.output_directory = self._pref_last_output_directory
-            self.output_edit.setText(str(self.output_directory))
         else:
             self.output_directory = None
-            self.output_edit.clear()
         self.clear_button.setEnabled(False)
-        self.status_label.setText("Ready")
+        self._update_output_preview()
 
     def _choose_output_directory(self) -> None:
         directory = QFileDialog.getExistingDirectory(
@@ -540,10 +593,22 @@ class MainWindow(QWidget):
         if not self.output_directory and self.input_files:
             self.output_directory = self.input_files[0].parent
 
+        if self.output_directory and (
+            self.output_directory.is_file()
+            or (
+                self.output_directory.suffix
+                and not self.output_directory.is_dir()
+            )
+        ):
+            self.output_directory = self.output_directory.parent
+
         if not self.output_directory:
             self.output_edit.clear()
+            self.output_edit.setToolTip("")
         else:
-            self.output_edit.setText(str(self.output_directory))
+            directory_text = str(self.output_directory)
+            self.output_edit.setText(directory_text)
+            self.output_edit.setToolTip(directory_text)
 
         if not self.input_files:
             self.status_label.setText("Ready")
@@ -621,6 +686,9 @@ class MainWindow(QWidget):
             self._progress_dialog.show_finished("Conversion completed", message)
         if self.open_destination_checkbox.isChecked() and self.output_directory:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.output_directory)))
+        if getattr(self, "auto_clear_checkbox", None) and self.auto_clear_checkbox.isChecked():
+            self._clear_selection()
+            self.status_label.setText("Completed")
 
     @Slot(str)
     def _on_conversion_error(self, message: str) -> None:
@@ -657,6 +725,21 @@ class MainWindow(QWidget):
         elif self.output_directory:
             self._save_last_output_directory(self.output_directory)
 
+    def _on_remember_geometry_toggled(self, checked: bool) -> None:
+        self._pref_remember_geometry = checked
+        self._settings.setValue("remember_window_geometry", checked)
+        if not checked:
+            self._settings.remove("window_geometry")
+            self._saved_geometry = None
+        else:
+            geometry = self.saveGeometry()
+            self._saved_geometry = geometry
+            self._settings.setValue("window_geometry", geometry)
+
+    def _on_auto_clear_toggled(self, checked: bool) -> None:
+        self._pref_auto_clear_selection = checked
+        self._settings.setValue("auto_clear_selection", checked)
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -678,4 +761,8 @@ class MainWindow(QWidget):
         if self._thread and self._thread.isRunning():
             self._thread.quit()
             self._thread.wait(2000)
+        if self._pref_remember_geometry:
+            geometry = self.saveGeometry()
+            self._settings.setValue("window_geometry", geometry)
+            self._saved_geometry = geometry
         super().closeEvent(event)
