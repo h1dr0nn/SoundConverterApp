@@ -14,6 +14,7 @@
 
 - Python 3.9 trở lên.
 - [FFmpeg](https://ffmpeg.org/download.html) đã được cài và thêm vào `PATH` (pydub cần công cụ này để xuất âm thanh).
+- Các thư viện Python: PySide6, pydub và pyaudioop (cài đặt bằng `pip install -r requirements.txt`).
 
 ## Cài đặt
 
