@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from PySide6.QtCore import QObject, Signal, Slot
 
-from .converter import ConversionRequest, SoundConverter
+from .converter import ConversionRequest, ConversionResult, SoundConverter
 
 
 class ConversionWorker(QObject):
@@ -18,12 +20,20 @@ class ConversionWorker(QObject):
         super().__init__()
         self._converter = converter
         self._request = request
+        self._result: Optional[ConversionResult] = None
+
+    @property
+    def result(self) -> Optional[ConversionResult]:
+        """Return the result of the most recent conversion, if available."""
+
+        return self._result
 
     @Slot()
     def run(self) -> None:
-        success, message = self._converter.convert(self._request)
-        if success:
-            self.succeeded.emit(message)
+        result = self._converter.convert(self._request)
+        self._result = result
+        if result.success:
+            self.succeeded.emit(result.message)
         else:
-            self.failed.emit(message)
+            self.failed.emit(result.message)
         self.finished.emit()
