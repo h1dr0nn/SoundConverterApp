@@ -592,20 +592,24 @@ class MainWindow(QWidget):
                 "Unsupported formats: " + ", ".join(path.name for path in unsupported)
             )
 
-        if skipped_messages:
-            QMessageBox.warning(
-                self,
-                "Some files were skipped",
-                "\n".join(skipped_messages),
-            )
+        message_lines = list(skipped_messages)
 
         if not valid_files:
+            if message_lines:
+                message_lines.append("")
+            message_lines.append("Please select at least one supported audio file.")
+
+        if message_lines:
+            title = "Some files were skipped"
+            if not valid_files:
+                title = "No valid files"
             QMessageBox.warning(
                 self,
-                "No valid files",
-                "Please select at least one supported audio file.",
+                title,
+                "\n".join(message_lines),
             )
-            return
+            if not valid_files:
+                return
 
         self.input_files = valid_files
         if self.output_directory is None:
