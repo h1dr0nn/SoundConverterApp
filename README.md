@@ -44,7 +44,7 @@ python main.py
 2. Đóng gói ứng dụng (chạy lệnh trên Windows Terminal/PowerShell tại thư mục dự án):
 
    ```powershell
-   pyinstaller --noconfirm --windowed ^
+   pyinstaller --noconfirm --windowed --onefile ^
      --name SoundConverter ^
      --add-data "app/resources;app/resources" ^
      main.py
@@ -56,6 +56,10 @@ python main.py
    pyinstaller setup.spec
    ```
 
-3. File chạy sẽ nằm trong thư mục `dist/SoundConverter/SoundConverter.exe`.
+3. File chạy sẽ nằm trong `dist/SoundConverter.exe` (chế độ `--onefile`).
+
+> PyInstaller vẫn bung tài nguyên ra thư mục tạm trong lúc chạy nên đừng gỡ
+> các đường dẫn `--add-data`/`datas` hiện có; chúng đảm bảo QSS, icon và FFmpeg
+> luôn được tìm thấy khi chạy file `.exe` đã đóng gói.
 
 > Lưu ý: Nếu build trên Linux/macOS hãy đổi dấu phân cách trong `--add-data` từ `;` thành `:`.
