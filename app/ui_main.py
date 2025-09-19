@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Sequence, Set
+from typing import Dict, List, Optional, Sequence, Set
 
 from PySide6.QtCore import QByteArray, QSettings, QThread, QUrl, Slot
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon
@@ -21,9 +21,10 @@ from PySide6.QtWidgets import (
 )
 
 from .converter import ConversionRequest, SoundConverter
+from .mastering import MasteringEngine, MasteringParameters, MasteringRequest
 from .resources import load_stylesheet, resource_path
-from .ui import AUDIO_SUFFIXES, ConvertTab, SettingsTab
-from .workers import ConversionWorker
+from .ui import AUDIO_SUFFIXES, ConvertTab, MasteringTab, SettingsTab
+from .workers import ConversionWorker, MasteringWorker
 
 
 class ConversionDialog(QDialog):
@@ -68,10 +69,15 @@ class ConversionDialog(QDialog):
     # ------------------------------------------------------------------
     # API
     # ------------------------------------------------------------------
-    def show_running(self) -> None:
-        self.setWindowTitle("Converting…")
-        self._headline.setText("Converting audio files…")
-        self._message.setText("Please wait while the files are processed.")
+    def show_running(
+        self,
+        title: str = "Converting…",
+        headline: str = "Converting audio files…",
+        message: str = "Please wait while the files are processed.",
+    ) -> None:
+        self.setWindowTitle(title)
+        self._headline.setText(headline)
+        self._message.setText(message)
         self._progress.setRange(0, 0)
         self._close_button.setEnabled(False)
 
@@ -87,18 +93,40 @@ class ConversionDialog(QDialog):
 class MainWindow(QWidget):
     """The primary window managing user interaction."""
 
-    def __init__(self, converter: SoundConverter) -> None:
+    def __init__(
+        self,
+        converter: SoundConverter,
+        mastering_engine: Optional[MasteringEngine] = None,
+    ) -> None:
         super().__init__()
         self.converter = converter
+        self.mastering_engine = mastering_engine or MasteringEngine()
         self.input_files: List[Path] = []
         self.output_directory: Optional[Path] = None
+        self.mastering_files: List[Path] = []
+        self.mastering_output_directory: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[ConversionWorker] = None
         self._active_request: Optional[ConversionRequest] = None
         self._progress_dialog: Optional[ConversionDialog] = None
+        self._mastering_thread: Optional[QThread] = None
+        self._mastering_worker: Optional[MasteringWorker] = None
+        self._active_mastering_request: Optional[MasteringRequest] = None
+        self._mastering_dialog: Optional[ConversionDialog] = None
+        self._mastering_parameters: MasteringParameters = (
+            self.mastering_engine.parameters_for_preset(
+                self.mastering_engine.default_preset()
+            )
+        )
+        self._preset_definitions: Dict[str, MasteringParameters] = (
+            self.mastering_engine.presets()
+        )
 
         self._settings = QSettings("SoundConverterApp", "SOUND_CONVERTER")
         self._load_preferences()
+        self._mastering_parameters = self.mastering_engine.parameters_for_preset(
+            self._pref_mastering_preset
+        )
 
         self._setup_ui()
         self._apply_styles()
@@ -117,6 +145,11 @@ class MainWindow(QWidget):
         self._pref_remember_destination = True
         self._pref_auto_clear_selection = False
         self._pref_remember_geometry = True
+        preset_value = self._settings.value("mastering_default_preset", "")
+        if isinstance(preset_value, str) and preset_value in self._preset_definitions:
+            self._pref_mastering_preset = preset_value
+        else:
+            self._pref_mastering_preset = self.mastering_engine.default_preset()
         last_directory = self._settings.value("last_output_directory", "")
         self._pref_last_output_directory: Optional[Path]
         if last_directory:
@@ -176,6 +209,27 @@ class MainWindow(QWidget):
         self.convert_tab.formatChanged.connect(self._on_format_changed)
         self.tabs.addTab(self.convert_tab, "Convert")
 
+        self.mastering_tab = MasteringTab(self._preset_definitions)
+        self.mastering_tab.set_current_preset(self._pref_mastering_preset)
+        self.mastering_tab.set_parameters(self._mastering_parameters)
+        self.mastering_tab.selectFilesRequested.connect(
+            self._open_mastering_file_dialog
+        )
+        self.mastering_tab.filesDropped.connect(self._handle_mastering_files)
+        self.mastering_tab.clearSelectionRequested.connect(
+            self._clear_mastering_selection
+        )
+        self.mastering_tab.destinationRequested.connect(
+            self._choose_mastering_output_directory
+        )
+        self.mastering_tab.masteringRequested.connect(self._start_mastering)
+        self.mastering_tab.presetChanged.connect(self._on_mastering_preset_changed)
+        self.mastering_tab.parametersChanged.connect(
+            self._on_mastering_parameters_changed
+        )
+        self.tabs.addTab(self.mastering_tab, "Mastering")
+        self._mastering_parameters = self.mastering_tab.current_parameters
+
         self.settings_tab = SettingsTab(self._settings, self._available_formats)
         self.settings_tab.defaultFormatChanged.connect(self._on_default_format_changed)
         self.settings_tab.overwriteExistingChanged.connect(self._on_overwrite_toggled)
@@ -228,7 +282,19 @@ class MainWindow(QWidget):
         else:
             self.output_directory = None
         self.convert_tab.show_no_files()
-        self._update_output_preview()
+        self._update_conversion_preview()
+
+        self.mastering_files = []
+        if (
+            self._pref_remember_destination
+            and self._pref_last_output_directory
+            and self._pref_last_output_directory.exists()
+        ):
+            self.mastering_output_directory = self._pref_last_output_directory
+        else:
+            self.mastering_output_directory = None
+        self.mastering_tab.show_no_files()
+        self._update_mastering_preview()
 
     def _restore_geometry(self) -> None:
         if not self._pref_remember_geometry or not self._saved_geometry:
@@ -256,6 +322,16 @@ class MainWindow(QWidget):
         )
         if file_paths:
             self._handle_input_files([Path(path) for path in file_paths])
+
+    def _open_mastering_file_dialog(self) -> None:
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select audio files to master",
+            "",
+            "Audio (*.mp3 *.wav *.ogg *.flac *.aac *.wma *.m4a *.aiff *.aif *.opus)",
+        )
+        if file_paths:
+            self._handle_mastering_files([Path(path) for path in file_paths])
 
     def _handle_input_files(self, file_paths: Sequence[Path]) -> None:
         valid_files: List[Path] = []
@@ -317,7 +393,69 @@ class MainWindow(QWidget):
             else:
                 self.output_directory = self.input_files[0].parent
         self.convert_tab.show_selected_files(self.input_files)
-        self._update_output_preview()
+        self._update_conversion_preview()
+
+    def _handle_mastering_files(self, file_paths: Sequence[Path]) -> None:
+        valid_files: List[Path] = []
+        unsupported: List[Path] = []
+        missing: List[Path] = []
+        seen: Set[Path] = set()
+
+        for file_path in file_paths:
+            resolved = file_path.resolve(strict=False)
+            if not file_path.exists():
+                missing.append(file_path)
+                continue
+            if file_path.suffix.lower() not in AUDIO_SUFFIXES:
+                unsupported.append(file_path)
+                continue
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            valid_files.append(file_path)
+
+        skipped_messages = []
+        if missing:
+            skipped_messages.append(
+                "Missing files: " + ", ".join(path.name for path in missing)
+            )
+
+        if unsupported:
+            skipped_messages.append(
+                "Unsupported formats: " + ", ".join(path.name for path in unsupported)
+            )
+
+        message_lines = list(skipped_messages)
+
+        if not valid_files:
+            if message_lines:
+                message_lines.append("")
+            message_lines.append("Please select at least one supported audio file.")
+
+        if message_lines:
+            title = "Some files were skipped"
+            if not valid_files:
+                title = "No valid files"
+            QMessageBox.warning(
+                self,
+                title,
+                "\n".join(message_lines),
+            )
+            if not valid_files:
+                return
+
+        self.mastering_files = valid_files
+        if self.mastering_output_directory is None:
+            if (
+                self._pref_remember_destination
+                and self._pref_last_output_directory
+                and self._pref_last_output_directory.exists()
+            ):
+                self.mastering_output_directory = self._pref_last_output_directory
+            else:
+                self.mastering_output_directory = self.mastering_files[0].parent
+        self.mastering_tab.show_selected_files(self.mastering_files)
+        self._update_mastering_preview()
 
     def _clear_selection(self) -> None:
         self.input_files = []
@@ -330,7 +468,20 @@ class MainWindow(QWidget):
             self.output_directory = self._pref_last_output_directory
         else:
             self.output_directory = None
-        self._update_output_preview()
+        self._update_conversion_preview()
+
+    def _clear_mastering_selection(self) -> None:
+        self.mastering_files = []
+        self.mastering_tab.show_no_files()
+        if (
+            self._pref_remember_destination
+            and self._pref_last_output_directory
+            and self._pref_last_output_directory.exists()
+        ):
+            self.mastering_output_directory = self._pref_last_output_directory
+        else:
+            self.mastering_output_directory = None
+        self._update_mastering_preview()
 
     def _choose_output_directory(self) -> None:
         directory = QFileDialog.getExistingDirectory(
@@ -339,9 +490,18 @@ class MainWindow(QWidget):
         if directory:
             self.output_directory = Path(directory)
             self._save_last_output_directory(self.output_directory)
-            self._update_output_preview()
+            self._update_conversion_preview()
 
-    def _update_output_preview(self) -> None:
+    def _choose_mastering_output_directory(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select mastering destination"
+        )
+        if directory:
+            self.mastering_output_directory = Path(directory)
+            self._save_last_output_directory(self.mastering_output_directory)
+            self._update_mastering_preview()
+
+    def _update_conversion_preview(self) -> None:
         if not self.output_directory and self.input_files:
             self.output_directory = self.input_files[0].parent
 
@@ -368,6 +528,35 @@ class MainWindow(QWidget):
         else:
             self.convert_tab.set_status(
                 f"{len(self.input_files)} files will be converted to .{format_name}"
+            )
+
+    def _update_mastering_preview(self) -> None:
+        if not self.mastering_output_directory and self.mastering_files:
+            self.mastering_output_directory = self.mastering_files[0].parent
+
+        if self.mastering_output_directory and (
+            self.mastering_output_directory.is_file()
+            or (
+                self.mastering_output_directory.suffix
+                and not self.mastering_output_directory.is_dir()
+            )
+        ):
+            self.mastering_output_directory = self.mastering_output_directory.parent
+
+        self.mastering_tab.set_output_directory(self.mastering_output_directory)
+
+        if not self.mastering_files:
+            self.mastering_tab.set_status("Ready")
+            return
+
+        preset = self.mastering_tab.current_preset
+        if len(self.mastering_files) == 1:
+            self.mastering_tab.set_status(
+                f"Ready to master '{self.mastering_files[0].name}' ({preset})"
+            )
+        else:
+            self.mastering_tab.set_status(
+                f"{len(self.mastering_files)} files will be mastered ({preset})"
             )
 
     def _export_audio(self) -> None:
@@ -397,7 +586,7 @@ class MainWindow(QWidget):
             overwrite_existing=self._pref_overwrite_existing,
         )
 
-        self._lock_ui()
+        self._lock_convert_ui()
         self.convert_tab.set_status("Converting…")
 
         self._active_request = request
@@ -418,12 +607,68 @@ class MainWindow(QWidget):
         self._thread.finished.connect(self._on_conversion_finished)
         self._thread.start()
 
+    def _start_mastering(self) -> None:
+        if not self.mastering_files:
+            QMessageBox.warning(
+                self,
+                "No files",
+                "Please choose audio files before starting the mastering process.",
+            )
+            return
+
+        destination = (
+            self.mastering_output_directory
+            or self.mastering_files[0].parent
+        )
+        if destination is None:
+            QMessageBox.warning(
+                self,
+                "No destination",
+                "Please choose a folder to store the mastered files.",
+            )
+            return
+
+        self._save_last_output_directory(destination)
+
+        request = MasteringRequest(
+            input_paths=tuple(self.mastering_files),
+            output_directory=destination,
+            preset=self.mastering_tab.current_preset,
+            parameters=self._mastering_parameters,
+            overwrite_existing=self._pref_overwrite_existing,
+        )
+
+        self._lock_mastering_ui()
+        self.mastering_tab.set_status("Mastering…")
+
+        self._active_mastering_request = request
+        self._mastering_dialog = ConversionDialog(self)
+        self._mastering_dialog.show_running(
+            title="Mastering…",
+            headline="Mastering audio files…",
+            message="Please wait while the files are mastered.",
+        )
+        self._mastering_dialog.finished.connect(self._on_mastering_dialog_closed)
+        self._mastering_dialog.show()
+
+        self._mastering_thread = QThread(self)
+        self._mastering_worker = MasteringWorker(self.mastering_engine, request)
+        self._mastering_worker.moveToThread(self._mastering_thread)
+        self._mastering_thread.started.connect(self._mastering_worker.run)
+        self._mastering_worker.succeeded.connect(self._on_mastering_success)
+        self._mastering_worker.failed.connect(self._on_mastering_error)
+        self._mastering_worker.finished.connect(self._mastering_thread.quit)
+        self._mastering_worker.finished.connect(self._mastering_worker.deleteLater)
+        self._mastering_thread.finished.connect(self._mastering_thread.deleteLater)
+        self._mastering_thread.finished.connect(self._on_mastering_finished)
+        self._mastering_thread.start()
+
     @Slot()
     def _on_conversion_finished(self) -> None:
         self._thread = None
         self._worker = None
         self._active_request = None
-        self._unlock_ui()
+        self._unlock_convert_ui()
 
     @Slot(str)
     def _on_conversion_success(self, message: str) -> None:
@@ -446,12 +691,12 @@ class MainWindow(QWidget):
         self._progress_dialog = None
 
     def _on_format_changed(self, _: str) -> None:
-        self._update_output_preview()
+        self._update_conversion_preview()
 
     def _on_default_format_changed(self, value: str) -> None:
         self._pref_default_format = value
         self.convert_tab.set_current_format(value)
-        self._update_output_preview()
+        self._update_conversion_preview()
 
     def _on_overwrite_toggled(self, checked: bool) -> None:
         self._pref_overwrite_existing = checked
@@ -477,27 +722,85 @@ class MainWindow(QWidget):
     def _on_auto_clear_toggled(self, checked: bool) -> None:
         self._pref_auto_clear_selection = checked
 
+    @Slot()
+    def _on_mastering_finished(self) -> None:
+        self._mastering_thread = None
+        self._mastering_worker = None
+        self._active_mastering_request = None
+        self._unlock_mastering_ui()
+
+    @Slot(str)
+    def _on_mastering_success(self, message: str) -> None:
+        self.mastering_tab.set_status("Completed")
+        if self._mastering_dialog:
+            self._mastering_dialog.show_finished("Mastering completed", message)
+        if self._pref_open_destination and self.mastering_output_directory:
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.mastering_output_directory))
+            )
+        if self._pref_auto_clear_selection:
+            self._clear_mastering_selection()
+            self.mastering_tab.set_status("Completed")
+
+    @Slot(str)
+    def _on_mastering_error(self, message: str) -> None:
+        self.mastering_tab.set_status("Mastering failed")
+        if self._mastering_dialog:
+            self._mastering_dialog.show_finished("Mastering failed", message)
+
+    def _on_mastering_dialog_closed(self, _: int) -> None:
+        self._mastering_dialog = None
+
+    def _on_mastering_preset_changed(self, preset: str) -> None:
+        if preset not in self._preset_definitions:
+            return
+        self._pref_mastering_preset = preset
+        self._settings.setValue("mastering_default_preset", preset)
+        self._update_mastering_preview()
+
+    def _on_mastering_parameters_changed(
+        self, parameters: MasteringParameters
+    ) -> None:
+        self._mastering_parameters = parameters
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _lock_ui(self) -> None:
+    def _lock_convert_ui(self) -> None:
         self.convert_tab.set_export_enabled(False)
         self.convert_tab.set_browse_enabled(False)
         self.convert_tab.set_clear_enabled(False)
         self.convert_tab.set_destination_enabled(False)
         self.convert_tab.set_format_enabled(False)
 
-    def _unlock_ui(self) -> None:
+    def _unlock_convert_ui(self) -> None:
         self.convert_tab.set_export_enabled(True)
         self.convert_tab.set_browse_enabled(True)
         self.convert_tab.set_destination_enabled(True)
         self.convert_tab.set_format_enabled(True)
         self.convert_tab.set_clear_enabled(bool(self.input_files))
 
+    def _lock_mastering_ui(self) -> None:
+        self.mastering_tab.set_export_enabled(False)
+        self.mastering_tab.set_browse_enabled(False)
+        self.mastering_tab.set_clear_enabled(False)
+        self.mastering_tab.set_destination_enabled(False)
+        self.mastering_tab.set_controls_enabled(False)
+
+    def _unlock_mastering_ui(self) -> None:
+        self.mastering_tab.set_export_enabled(True)
+        self.mastering_tab.set_browse_enabled(True)
+        self.mastering_tab.set_destination_enabled(True)
+        self.mastering_tab.set_controls_enabled(True)
+        self.mastering_tab.set_clear_enabled(bool(self.mastering_files))
+
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         if self._thread and self._thread.isRunning():
             self._thread.quit()
             self._thread.wait(2000)
+        if self._mastering_thread and self._mastering_thread.isRunning():
+            self._mastering_thread.quit()
+            self._mastering_thread.wait(2000)
         if self._pref_remember_geometry:
             geometry = self.saveGeometry()
             self._settings.setValue("window_geometry", geometry)

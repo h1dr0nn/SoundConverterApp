@@ -10,6 +10,7 @@ from typing import Tuple
 from PySide6.QtWidgets import QApplication
 
 from .converter import SoundConverter
+from .mastering import MasteringEngine
 from .ui_main import MainWindow
 
 
@@ -55,7 +56,7 @@ def create_application() -> Tuple[QApplication, MainWindow]:
 
     ensure_ffmpeg()
     app = QApplication(sys.argv)
-    window = MainWindow(SoundConverter())
+    window = MainWindow(SoundConverter(), MasteringEngine())
     return app, window
 
 
