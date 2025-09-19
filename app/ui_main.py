@@ -3,28 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Sequence, Set, Tuple
+from typing import List, Optional, Sequence, Set
 
-from PySide6.QtCore import (
-    QByteArray,
-    QSettings,
-    QSize,
-    Qt,
-    QThread,
-    QUrl,
-    Signal,
-    Slot,
-)
-from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QByteArray, QSettings, QThread, QUrl, Slot
+from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
     QDialog,
     QFileDialog,
-    QFrame,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QProgressBar,
@@ -35,87 +22,8 @@ from PySide6.QtWidgets import (
 
 from .converter import ConversionRequest, SoundConverter
 from .resources import load_stylesheet, resource_path
+from .ui import AUDIO_SUFFIXES, ConvertTab, SettingsTab
 from .workers import ConversionWorker
-
-
-AUDIO_SUFFIXES: Set[str] = {
-    ".mp3",
-    ".wav",
-    ".ogg",
-    ".flac",
-    ".aac",
-    ".wma",
-    ".m4a",
-    ".aiff",
-    ".aif",
-    ".opus",
-}
-
-
-class DropArea(QFrame):
-    """Visual area that accepts drag-and-drop of multiple audio files."""
-
-    filesDropped = Signal(list)
-    clicked = Signal()
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.setObjectName("dropArea")
-        self.setAcceptDrops(True)
-
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self._title = QLabel("Drop audio files")
-        self._title.setObjectName("dropTitle")
-        self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self._title)
-
-        self._subtitle = QLabel("…or click to browse")
-        self._subtitle.setObjectName("dropSubtitle")
-        self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self._subtitle)
-
-    def dragEnterEvent(self, event):  # type: ignore[override]
-        if event.mimeData().hasUrls() and any(
-            Path(url.toLocalFile()).suffix.lower() in AUDIO_SUFFIXES
-            for url in event.mimeData().urls()
-        ):
-            event.acceptProposedAction()
-            self.setProperty("dropActive", True)
-            self.style().unpolish(self)
-            self.style().polish(self)
-        else:
-            event.ignore()
-
-    def dragLeaveEvent(self, event):  # type: ignore[override]
-        event.accept()
-        self.setProperty("dropActive", False)
-        self.style().unpolish(self)
-        self.style().polish(self)
-
-    def dropEvent(self, event):  # type: ignore[override]
-        event.acceptProposedAction()
-        self.setProperty("dropActive", False)
-        self.style().unpolish(self)
-        self.style().polish(self)
-
-        files = [
-            Path(url.toLocalFile())
-            for url in event.mimeData().urls()
-            if Path(url.toLocalFile()).suffix.lower() in AUDIO_SUFFIXES
-        ]
-        if files:
-            self.filesDropped.emit(files)
-
-    def mousePressEvent(self, event):  # type: ignore[override]
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-        super().mousePressEvent(event)
-
-    def set_description(self, title: str, subtitle: str) -> None:
-        self._title.setText(title)
-        self._subtitle.setText(subtitle)
 
 
 class ConversionDialog(QDialog):
@@ -188,13 +96,14 @@ class MainWindow(QWidget):
         self._worker: Optional[ConversionWorker] = None
         self._active_request: Optional[ConversionRequest] = None
         self._progress_dialog: Optional[ConversionDialog] = None
-        self._icon_cache: dict[Tuple[str, int, int, int], Tuple[QIcon, QSize]] = {}
 
         self._settings = QSettings("SoundConverterApp", "SOUND_CONVERTER")
         self._load_preferences()
 
         self._setup_ui()
         self._apply_styles()
+        self._update_preferences_from_settings_tab()
+        self._apply_default_format()
         self._restore_initial_state()
         self._restore_geometry()
 
@@ -202,24 +111,12 @@ class MainWindow(QWidget):
     # Preferences helpers
     # ------------------------------------------------------------------
     def _load_preferences(self) -> None:
-        self._pref_default_format = str(
-            self._settings.value("default_format", "ogg")
-        )
-        self._pref_overwrite_existing = self._get_bool_setting(
-            "overwrite_existing", True
-        )
-        self._pref_open_destination = self._get_bool_setting(
-            "open_destination", False
-        )
-        self._pref_remember_destination = self._get_bool_setting(
-            "remember_destination", True
-        )
-        self._pref_auto_clear_selection = self._get_bool_setting(
-            "auto_clear_selection", False
-        )
-        self._pref_remember_geometry = self._get_bool_setting(
-            "remember_window_geometry", True
-        )
+        self._pref_default_format = "ogg"
+        self._pref_overwrite_existing = True
+        self._pref_open_destination = False
+        self._pref_remember_destination = True
+        self._pref_auto_clear_selection = False
+        self._pref_remember_geometry = True
         last_directory = self._settings.value("last_output_directory", "")
         self._pref_last_output_directory: Optional[Path]
         if last_directory:
@@ -230,14 +127,6 @@ class MainWindow(QWidget):
         self._saved_geometry = self._coerce_geometry_value(
             self._settings.value("window_geometry")
         )
-
-    def _get_bool_setting(self, key: str, default: bool) -> bool:
-        value = self._settings.value(key, default)
-        if isinstance(value, bool):
-            return value
-        if value is None:
-            return default
-        return str(value).lower() in {"1", "true", "yes", "on"}
 
     def _coerce_geometry_value(self, value: object) -> Optional[QByteArray]:
         if isinstance(value, QByteArray):
@@ -276,254 +165,60 @@ class MainWindow(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.setObjectName("mainTabs")
-        self.tabs.addTab(self._build_convert_tab(), "Convert")
-        self.tabs.addTab(self._build_settings_tab(), "Settings")
-        main_layout.addWidget(self.tabs)
-
-        self._apply_default_format()
-        self._sync_settings_controls()
-
-    def _apply_button_icon(
-        self, button: QPushButton, icon_name: str, base_size: QSize, padding: int
-    ) -> None:
-        icon, icon_size = self._load_padded_icon(icon_name, base_size, padding)
-        button.setIcon(icon)
-        button.setIconSize(icon_size)
-
-    def _load_padded_icon(
-        self, icon_name: str, base_size: QSize, padding: int
-    ) -> Tuple[QIcon, QSize]:
-        key = (icon_name, base_size.width(), base_size.height(), padding)
-        cached = self._icon_cache.get(key)
-        if cached is not None:
-            return cached
-
-        base_icon = QIcon(str(resource_path("icons", icon_name)))
-        icon = QIcon()
-        target_width = base_size.width() + padding
-
-        modes = (
-            QIcon.Mode.Normal,
-            QIcon.Mode.Disabled,
-            QIcon.Mode.Active,
-            QIcon.Mode.Selected,
-        )
-        states = (QIcon.State.Off, QIcon.State.On)
-
-        for mode in modes:
-            for state in states:
-                base_pixmap = base_icon.pixmap(base_size, mode, state)
-                if base_pixmap.isNull():
-                    base_pixmap = base_icon.pixmap(base_size, QIcon.Mode.Normal, state)
-                if base_pixmap.isNull():
-                    continue
-
-                device_ratio = base_pixmap.devicePixelRatio()
-                padded_width = int(round((base_size.width() + padding) * device_ratio))
-                padded_height = int(round(base_size.height() * device_ratio))
-                padded_pixmap = QPixmap(padded_width, padded_height)
-                padded_pixmap.fill(Qt.GlobalColor.transparent)
-                padded_pixmap.setDevicePixelRatio(device_ratio)
-
-                painter = QPainter(padded_pixmap)
-                painter.drawPixmap(0, 0, base_pixmap)
-                painter.end()
-
-                icon.addPixmap(padded_pixmap, mode, state)
-
-        icon_size = QSize(target_width, base_size.height())
-        self._icon_cache[key] = (icon, icon_size)
-        return icon, icon_size
-
-    def _build_convert_tab(self) -> QWidget:
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 16, 0, 0)
-        layout.setSpacing(20)
-
-        self.drop_area = DropArea()
-        self.drop_area.filesDropped.connect(self._handle_input_files)
-        self.drop_area.clicked.connect(self._open_file_dialog)
-        layout.addWidget(self.drop_area)
-
-        self.input_label = QLabel("No files selected")
-        self.input_label.setObjectName("pathLabel")
-        self.input_label.setWordWrap(True)
-        layout.addWidget(self.input_label)
-
-        file_actions = QHBoxLayout()
-        file_actions.setSpacing(12)
-
-        self.browse_button = QPushButton("Select audio files")
-        self.browse_button.setObjectName("browseButton")
-        self._apply_button_icon(
-            self.browse_button, "folder.svg", QSize(22, 22), padding=8
-        )
-        self.browse_button.clicked.connect(self._open_file_dialog)
-        file_actions.addWidget(self.browse_button)
-
-        self.clear_button = QPushButton("Clear selection")
-        self.clear_button.setObjectName("clearButton")
-        self.clear_button.clicked.connect(self._clear_selection)
-        self.clear_button.setEnabled(False)
-        file_actions.addWidget(self.clear_button)
-
-        file_actions.addStretch()
-        layout.addLayout(file_actions)
-
-        format_layout = QHBoxLayout()
-        format_layout.setSpacing(12)
-
-        format_label = QLabel("Output format")
-        format_label.setObjectName("sectionLabel")
-        format_layout.addWidget(format_label)
-
-        self.format_combo = QComboBox()
-        self.format_combo.setObjectName("formatCombo")
         self._available_formats = list(self.converter.available_formats())
-        self.format_combo.addItems(self._available_formats)
-        self.format_combo.currentTextChanged.connect(self._on_format_changed)
-        format_layout.addWidget(self.format_combo)
-        format_layout.addStretch()
-        layout.addLayout(format_layout)
 
-        destination_layout = QVBoxLayout()
-        destination_layout.setSpacing(8)
+        self.convert_tab = ConvertTab(self._available_formats)
+        self.convert_tab.selectFilesRequested.connect(self._open_file_dialog)
+        self.convert_tab.filesDropped.connect(self._handle_input_files)
+        self.convert_tab.clearSelectionRequested.connect(self._clear_selection)
+        self.convert_tab.destinationRequested.connect(self._choose_output_directory)
+        self.convert_tab.conversionRequested.connect(self._export_audio)
+        self.convert_tab.formatChanged.connect(self._on_format_changed)
+        self.tabs.addTab(self.convert_tab, "Convert")
 
-        destination_header = QLabel("Destination folder")
-        destination_header.setObjectName("sectionLabel")
-        destination_layout.addWidget(destination_header)
-
-        destination_controls = QHBoxLayout()
-        destination_controls.setSpacing(12)
-
-        self.output_edit = QLineEdit()
-        self.output_edit.setObjectName("outputEdit")
-        self.output_edit.setReadOnly(True)
-        self.output_edit.setPlaceholderText("Converted files will be saved here")
-        destination_controls.addWidget(self.output_edit)
-
-        self.destination_button = QPushButton("Choose folder")
-        self.destination_button.setObjectName("destinationButton")
-        self._apply_button_icon(
-            self.destination_button, "folder.svg", QSize(20, 20), padding=8
-        )
-        self.destination_button.clicked.connect(self._choose_output_directory)
-        destination_controls.addWidget(self.destination_button)
-
-        destination_layout.addLayout(destination_controls)
-        layout.addLayout(destination_layout)
-
-        footer_layout = QHBoxLayout()
-        footer_layout.setSpacing(12)
-
-        self.status_label = QLabel("Ready")
-        self.status_label.setObjectName("statusLabel")
-        footer_layout.addWidget(self.status_label)
-
-        footer_layout.addStretch()
-
-        self.export_button = QPushButton("Start conversion")
-        self.export_button.setObjectName("exportButton")
-        self._apply_button_icon(
-            self.export_button, "export.svg", QSize(22, 22), padding=10
-        )
-        self.export_button.clicked.connect(self._export_audio)
-        footer_layout.addWidget(self.export_button)
-
-        layout.addLayout(footer_layout)
-
-        return tab
-
-    def _build_settings_tab(self) -> QWidget:
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 16, 0, 0)
-        layout.setSpacing(18)
-
-        default_format_label = QLabel("Default output format")
-        default_format_label.setObjectName("settingsLabel")
-        layout.addWidget(default_format_label)
-
-        self.default_format_combo = QComboBox()
-        self.default_format_combo.setObjectName("settingsCombo")
-        self.default_format_combo.addItems(self._available_formats)
-        self.default_format_combo.currentTextChanged.connect(
-            self._on_default_format_changed
-        )
-        layout.addWidget(self.default_format_combo)
-
-        self.overwrite_checkbox = QCheckBox("Overwrite existing files")
-        self.overwrite_checkbox.setObjectName("settingsCheckBox")
-        self.overwrite_checkbox.toggled.connect(self._on_overwrite_toggled)
-        layout.addWidget(self.overwrite_checkbox)
-
-        self.open_destination_checkbox = QCheckBox(
-            "Open the destination folder when conversion completes"
-        )
-        self.open_destination_checkbox.setObjectName("settingsCheckBox")
-        self.open_destination_checkbox.toggled.connect(
+        self.settings_tab = SettingsTab(self._settings, self._available_formats)
+        self.settings_tab.defaultFormatChanged.connect(self._on_default_format_changed)
+        self.settings_tab.overwriteExistingChanged.connect(self._on_overwrite_toggled)
+        self.settings_tab.openDestinationChanged.connect(
             self._on_open_destination_toggled
         )
-        layout.addWidget(self.open_destination_checkbox)
-
-        self.remember_destination_checkbox = QCheckBox(
-            "Remember the last destination folder"
-        )
-        self.remember_destination_checkbox.setObjectName("settingsCheckBox")
-        self.remember_destination_checkbox.toggled.connect(
+        self.settings_tab.rememberDestinationChanged.connect(
             self._on_remember_destination_toggled
         )
-        layout.addWidget(self.remember_destination_checkbox)
-
-        self.remember_geometry_checkbox = QCheckBox(
-            "Remember window size and position"
-        )
-        self.remember_geometry_checkbox.setObjectName("settingsCheckBox")
-        self.remember_geometry_checkbox.toggled.connect(
+        self.settings_tab.rememberGeometryChanged.connect(
             self._on_remember_geometry_toggled
         )
-        layout.addWidget(self.remember_geometry_checkbox)
-
-        self.auto_clear_checkbox = QCheckBox(
-            "Clear file selection after a successful conversion"
+        self.settings_tab.autoClearSelectionChanged.connect(
+            self._on_auto_clear_toggled
         )
-        self.auto_clear_checkbox.setObjectName("settingsCheckBox")
-        self.auto_clear_checkbox.toggled.connect(self._on_auto_clear_toggled)
-        layout.addWidget(self.auto_clear_checkbox)
+        self.tabs.addTab(self.settings_tab, "Settings")
 
-        layout.addStretch()
+        main_layout.addWidget(self.tabs)
 
-        return tab
+    def _update_preferences_from_settings_tab(self) -> None:
+        self._pref_default_format = self.settings_tab.default_format
+        self._pref_overwrite_existing = self.settings_tab.overwrite_existing
+        self._pref_open_destination = self.settings_tab.open_destination
+        self._pref_remember_destination = self.settings_tab.remember_destination
+        self._pref_remember_geometry = self.settings_tab.remember_geometry
+        self._pref_auto_clear_selection = self.settings_tab.auto_clear_selection
+        if not self._pref_remember_destination:
+            self._pref_last_output_directory = None
 
     def _apply_default_format(self) -> None:
+        if not self._available_formats:
+            return
         target = (
             self._pref_default_format
             if self._pref_default_format in self._available_formats
             else self._available_formats[0]
         )
-        self._set_combo_value(self.format_combo, target)
-        self._set_combo_value(self.default_format_combo, target)
-
-    def _sync_settings_controls(self) -> None:
-        self.overwrite_checkbox.setChecked(self._pref_overwrite_existing)
-        self.open_destination_checkbox.setChecked(self._pref_open_destination)
-        self.remember_destination_checkbox.setChecked(
-            self._pref_remember_destination
-        )
-        if hasattr(self, "remember_geometry_checkbox"):
-            self.remember_geometry_checkbox.setChecked(self._pref_remember_geometry)
-        if hasattr(self, "auto_clear_checkbox"):
-            self.auto_clear_checkbox.setChecked(self._pref_auto_clear_selection)
-
-    def _set_combo_value(self, combo: QComboBox, value: str) -> None:
-        index = combo.findText(value)
-        if index >= 0:
-            block = combo.blockSignals(True)
-            combo.setCurrentIndex(index)
-            combo.blockSignals(block)
+        self._pref_default_format = target
+        self.convert_tab.set_current_format(target)
+        self.settings_tab.set_default_format(target)
 
     def _restore_initial_state(self) -> None:
+        self.input_files = []
         if (
             self._pref_remember_destination
             and self._pref_last_output_directory
@@ -532,7 +227,7 @@ class MainWindow(QWidget):
             self.output_directory = self._pref_last_output_directory
         else:
             self.output_directory = None
-        self.clear_button.setEnabled(False)
+        self.convert_tab.show_no_files()
         self._update_output_preview()
 
     def _restore_geometry(self) -> None:
@@ -621,29 +316,12 @@ class MainWindow(QWidget):
                 self.output_directory = self._pref_last_output_directory
             else:
                 self.output_directory = self.input_files[0].parent
-
-        if len(self.input_files) == 1:
-            selected = self.input_files[0]
-            self.input_label.setText(str(selected))
-            self.drop_area.set_description("File selected", selected.name)
-        else:
-            summary_lines = [path.name for path in self.input_files[:3]]
-            remaining = len(self.input_files) - len(summary_lines)
-            if remaining > 0:
-                summary_lines.append(f"…and {remaining} more")
-            self.input_label.setText("\n".join(summary_lines))
-            self.drop_area.set_description(
-                f"{len(self.input_files)} files selected",
-                "Drop more files to replace the selection",
-            )
-
-        self.clear_button.setEnabled(True)
+        self.convert_tab.show_selected_files(self.input_files)
         self._update_output_preview()
 
     def _clear_selection(self) -> None:
         self.input_files = []
-        self.drop_area.set_description("Drop audio files", "…or click to browse")
-        self.input_label.setText("No files selected")
+        self.convert_tab.show_no_files()
         if (
             self._pref_remember_destination
             and self._pref_last_output_directory
@@ -652,7 +330,6 @@ class MainWindow(QWidget):
             self.output_directory = self._pref_last_output_directory
         else:
             self.output_directory = None
-        self.clear_button.setEnabled(False)
         self._update_output_preview()
 
     def _choose_output_directory(self) -> None:
@@ -677,25 +354,19 @@ class MainWindow(QWidget):
         ):
             self.output_directory = self.output_directory.parent
 
-        if not self.output_directory:
-            self.output_edit.clear()
-            self.output_edit.setToolTip("")
-        else:
-            directory_text = str(self.output_directory)
-            self.output_edit.setText(directory_text)
-            self.output_edit.setToolTip(directory_text)
+        self.convert_tab.set_output_directory(self.output_directory)
 
         if not self.input_files:
-            self.status_label.setText("Ready")
+            self.convert_tab.set_status("Ready")
             return
 
-        format_name = self.format_combo.currentText()
+        format_name = self.convert_tab.current_format
         if len(self.input_files) == 1:
-            self.status_label.setText(
+            self.convert_tab.set_status(
                 f"Ready to convert '{self.input_files[0].name}' to .{format_name}"
             )
         else:
-            self.status_label.setText(
+            self.convert_tab.set_status(
                 f"{len(self.input_files)} files will be converted to .{format_name}"
             )
 
@@ -722,12 +393,12 @@ class MainWindow(QWidget):
         request = ConversionRequest(
             input_paths=tuple(self.input_files),
             output_directory=destination,
-            output_format=self.format_combo.currentText(),
-            overwrite_existing=self.overwrite_checkbox.isChecked(),
+            output_format=self.convert_tab.current_format,
+            overwrite_existing=self._pref_overwrite_existing,
         )
 
         self._lock_ui()
-        self.status_label.setText("Converting…")
+        self.convert_tab.set_status("Converting…")
 
         self._active_request = request
         self._progress_dialog = ConversionDialog(self)
@@ -756,18 +427,18 @@ class MainWindow(QWidget):
 
     @Slot(str)
     def _on_conversion_success(self, message: str) -> None:
-        self.status_label.setText("Completed")
+        self.convert_tab.set_status("Completed")
         if self._progress_dialog:
             self._progress_dialog.show_finished("Conversion completed", message)
-        if self.open_destination_checkbox.isChecked() and self.output_directory:
+        if self._pref_open_destination and self.output_directory:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.output_directory)))
-        if getattr(self, "auto_clear_checkbox", None) and self.auto_clear_checkbox.isChecked():
+        if self._pref_auto_clear_selection:
             self._clear_selection()
-            self.status_label.setText("Completed")
+            self.convert_tab.set_status("Completed")
 
     @Slot(str)
     def _on_conversion_error(self, message: str) -> None:
-        self.status_label.setText("Conversion failed")
+        self.convert_tab.set_status("Conversion failed")
         if self._progress_dialog:
             self._progress_dialog.show_finished("Conversion failed", message)
 
@@ -779,58 +450,49 @@ class MainWindow(QWidget):
 
     def _on_default_format_changed(self, value: str) -> None:
         self._pref_default_format = value
-        self._settings.setValue("default_format", value)
-        self._set_combo_value(self.format_combo, value)
+        self.convert_tab.set_current_format(value)
         self._update_output_preview()
 
     def _on_overwrite_toggled(self, checked: bool) -> None:
         self._pref_overwrite_existing = checked
-        self._settings.setValue("overwrite_existing", checked)
 
     def _on_open_destination_toggled(self, checked: bool) -> None:
         self._pref_open_destination = checked
-        self._settings.setValue("open_destination", checked)
 
     def _on_remember_destination_toggled(self, checked: bool) -> None:
         self._pref_remember_destination = checked
-        self._settings.setValue("remember_destination", checked)
         if not checked:
-            self._settings.remove("last_output_directory")
             self._pref_last_output_directory = None
         elif self.output_directory:
             self._save_last_output_directory(self.output_directory)
 
     def _on_remember_geometry_toggled(self, checked: bool) -> None:
         self._pref_remember_geometry = checked
-        self._settings.setValue("remember_window_geometry", checked)
         if not checked:
-            self._settings.remove("window_geometry")
             self._saved_geometry = None
         else:
             geometry = self.saveGeometry()
             self._saved_geometry = geometry
-            self._settings.setValue("window_geometry", geometry)
 
     def _on_auto_clear_toggled(self, checked: bool) -> None:
         self._pref_auto_clear_selection = checked
-        self._settings.setValue("auto_clear_selection", checked)
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
     def _lock_ui(self) -> None:
-        self.export_button.setEnabled(False)
-        self.browse_button.setEnabled(False)
-        self.clear_button.setEnabled(False)
-        self.destination_button.setEnabled(False)
-        self.format_combo.setEnabled(False)
+        self.convert_tab.set_export_enabled(False)
+        self.convert_tab.set_browse_enabled(False)
+        self.convert_tab.set_clear_enabled(False)
+        self.convert_tab.set_destination_enabled(False)
+        self.convert_tab.set_format_enabled(False)
 
     def _unlock_ui(self) -> None:
-        self.export_button.setEnabled(True)
-        self.browse_button.setEnabled(True)
-        self.destination_button.setEnabled(True)
-        self.format_combo.setEnabled(True)
-        self.clear_button.setEnabled(bool(self.input_files))
+        self.convert_tab.set_export_enabled(True)
+        self.convert_tab.set_browse_enabled(True)
+        self.convert_tab.set_destination_enabled(True)
+        self.convert_tab.set_format_enabled(True)
+        self.convert_tab.set_clear_enabled(bool(self.input_files))
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         if self._thread and self._thread.isRunning():
