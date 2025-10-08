@@ -35,6 +35,7 @@ class MasteringTab(QWidget):
     filesDropped = Signal(list)
     presetChanged = Signal(str)
     parametersChanged = Signal(object)
+    filenameSuffixChanged = Signal(str)
 
     def __init__(
         self, presets: Dict[str, MasteringParameters], parent: QWidget | None = None
@@ -47,6 +48,7 @@ class MasteringTab(QWidget):
         self._build_ui()
         self.set_parameters(self._parameters)
         self.set_available_presets(self._preset_definitions)
+        self.set_filename_suffix("_mastered")
         self.show_no_files()
         self.set_status("Ready")
 
@@ -161,6 +163,16 @@ class MasteringTab(QWidget):
         self.compression_check.setEnabled(enabled)
         self.limiter_check.setEnabled(enabled)
         self.output_gain_spin.setEnabled(enabled)
+        self.suffix_edit.setEnabled(enabled)
+
+    def set_filename_suffix(self, suffix: str) -> None:
+        blocker = QSignalBlocker(self.suffix_edit)
+        self.suffix_edit.setText(suffix)
+        del blocker
+
+    @property
+    def filename_suffix(self) -> str:
+        return self.suffix_edit.text().strip()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -288,6 +300,22 @@ class MasteringTab(QWidget):
         destination_controls.addWidget(self.destination_button)
 
         destination_layout.addLayout(destination_controls)
+        suffix_layout = QHBoxLayout()
+        suffix_layout.setSpacing(12)
+
+        suffix_label = QLabel("File name suffix")
+        suffix_label.setObjectName("sectionLabel")
+        suffix_layout.addWidget(suffix_label)
+        suffix_layout.addStretch()
+
+        self.suffix_edit = QLineEdit()
+        self.suffix_edit.setObjectName("suffixEdit")
+        self.suffix_edit.setPlaceholderText("Leave blank to keep original name")
+        self.suffix_edit.setClearButtonEnabled(True)
+        self.suffix_edit.textChanged.connect(self._on_suffix_changed)
+        suffix_layout.addWidget(self.suffix_edit)
+
+        destination_layout.addLayout(suffix_layout)
         layout.addLayout(destination_layout)
 
         footer_layout = QHBoxLayout()
@@ -379,3 +407,6 @@ class MasteringTab(QWidget):
         if parameters != self._parameters:
             self._parameters = parameters
             self.parametersChanged.emit(parameters)
+
+    def _on_suffix_changed(self, text: str) -> None:
+        self.filenameSuffixChanged.emit(text.strip())

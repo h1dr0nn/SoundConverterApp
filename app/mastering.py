@@ -37,6 +37,7 @@ class MasteringRequest:
     output_directory: Path
     preset: str
     parameters: MasteringParameters
+    filename_suffix: str = "_mastered"
     overwrite_existing: bool = True
 
     def outputs(self) -> Iterable[Tuple[Path, Path]]:
@@ -46,7 +47,9 @@ class MasteringRequest:
 
         for source in self.input_paths:
             suffix = source.suffix if source.suffix else ".wav"
-            base_destination = self.output_directory / f"{source.stem}_mastered{suffix}"
+            suffix_text = self.filename_suffix.strip()
+            stem = f"{source.stem}{suffix_text}" if suffix_text else source.stem
+            base_destination = self.output_directory / f"{stem}{suffix}"
             destination = base_destination
 
             if not self.overwrite_existing:

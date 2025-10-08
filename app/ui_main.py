@@ -160,6 +160,11 @@ class MainWindow(QWidget):
         self._saved_geometry = self._coerce_geometry_value(
             self._settings.value("window_geometry")
         )
+        suffix_value = self._settings.value("mastering_filename_suffix", "_mastered")
+        if isinstance(suffix_value, str):
+            self._pref_mastering_suffix = suffix_value.strip()
+        else:
+            self._pref_mastering_suffix = "_mastered"
 
     def _coerce_geometry_value(self, value: object) -> Optional[QByteArray]:
         if isinstance(value, QByteArray):
@@ -212,6 +217,7 @@ class MainWindow(QWidget):
         self.mastering_tab = MasteringTab(self._preset_definitions)
         self.mastering_tab.set_current_preset(self._pref_mastering_preset)
         self.mastering_tab.set_parameters(self._mastering_parameters)
+        self.mastering_tab.set_filename_suffix(self._pref_mastering_suffix)
         self.mastering_tab.selectFilesRequested.connect(
             self._open_mastering_file_dialog
         )
@@ -226,6 +232,9 @@ class MainWindow(QWidget):
         self.mastering_tab.presetChanged.connect(self._on_mastering_preset_changed)
         self.mastering_tab.parametersChanged.connect(
             self._on_mastering_parameters_changed
+        )
+        self.mastering_tab.filenameSuffixChanged.connect(
+            self._on_mastering_suffix_changed
         )
         self.tabs.addTab(self.mastering_tab, "Mastering")
         self._mastering_parameters = self.mastering_tab.current_parameters
@@ -635,6 +644,7 @@ class MainWindow(QWidget):
             output_directory=destination,
             preset=self.mastering_tab.current_preset,
             parameters=self._mastering_parameters,
+            filename_suffix=self.mastering_tab.filename_suffix,
             overwrite_existing=self._pref_overwrite_existing,
         )
 
@@ -762,6 +772,12 @@ class MainWindow(QWidget):
         self, parameters: MasteringParameters
     ) -> None:
         self._mastering_parameters = parameters
+
+    def _on_mastering_suffix_changed(self, suffix: str) -> None:
+        trimmed = suffix.strip()
+        self._pref_mastering_suffix = trimmed
+        self._settings.setValue("mastering_filename_suffix", trimmed)
+        self._update_mastering_preview()
 
     # ------------------------------------------------------------------
     # Helpers
