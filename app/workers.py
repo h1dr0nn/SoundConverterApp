@@ -8,6 +8,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 
 from .converter import ConversionRequest, ConversionResult, SoundConverter
 from .mastering import MasteringEngine, MasteringRequest, MasteringResult
+from .trimmer import SilenceTrimmer, TrimRequest, TrimResult
 
 
 class ConversionWorker(QObject):
@@ -64,6 +65,36 @@ class MasteringWorker(QObject):
     @Slot()
     def run(self) -> None:
         result = self._engine.process(self._request)
+        self._result = result
+        if result.success:
+            self.succeeded.emit(result.message)
+        else:
+            self.failed.emit(result.message)
+        self.finished.emit()
+
+
+class TrimWorker(QObject):
+    """QObject-based worker that executes silence trimming in a thread."""
+
+    finished = Signal()
+    succeeded = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, trimmer: SilenceTrimmer, request: TrimRequest) -> None:
+        super().__init__()
+        self._trimmer = trimmer
+        self._request = request
+        self._result: Optional[TrimResult] = None
+
+    @property
+    def result(self) -> Optional[TrimResult]:
+        """Return the result of the most recent trimming job, if available."""
+
+        return self._result
+
+    @Slot()
+    def run(self) -> None:
+        result = self._trimmer.process(self._request)
         self._result = result
         if result.success:
             self.succeeded.emit(result.message)

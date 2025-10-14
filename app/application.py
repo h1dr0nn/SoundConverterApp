@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 
 from .converter import SoundConverter
 from .mastering import MasteringEngine
+from .trimmer import SilenceTrimmer
 from .ui_main import MainWindow
 
 
@@ -56,7 +57,7 @@ def create_application() -> Tuple[QApplication, MainWindow]:
 
     ensure_ffmpeg()
     app = QApplication(sys.argv)
-    window = MainWindow(SoundConverter(), MasteringEngine())
+    window = MainWindow(SoundConverter(), MasteringEngine(), SilenceTrimmer())
     return app, window
 
 

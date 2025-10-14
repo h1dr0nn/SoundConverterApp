@@ -23,8 +23,9 @@ from PySide6.QtWidgets import (
 from .converter import ConversionRequest, SoundConverter
 from .mastering import MasteringEngine, MasteringParameters, MasteringRequest
 from .resources import load_stylesheet, resource_path
-from .ui import AUDIO_SUFFIXES, ConvertTab, MasteringTab, SettingsTab
-from .workers import ConversionWorker, MasteringWorker
+from .trimmer import SilenceTrimmer, TrimRequest
+from .ui import AUDIO_SUFFIXES, ConvertTab, MasteringTab, SettingsTab, TrimTab
+from .workers import ConversionWorker, MasteringWorker, TrimWorker
 
 
 class ConversionDialog(QDialog):
@@ -97,14 +98,18 @@ class MainWindow(QWidget):
         self,
         converter: SoundConverter,
         mastering_engine: Optional[MasteringEngine] = None,
+        trimmer: Optional[SilenceTrimmer] = None,
     ) -> None:
         super().__init__()
         self.converter = converter
         self.mastering_engine = mastering_engine or MasteringEngine()
+        self.trimmer = trimmer or SilenceTrimmer()
         self.input_files: List[Path] = []
         self.output_directory: Optional[Path] = None
         self.mastering_files: List[Path] = []
         self.mastering_output_directory: Optional[Path] = None
+        self.trim_files: List[Path] = []
+        self.trim_output_directory: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[ConversionWorker] = None
         self._active_request: Optional[ConversionRequest] = None
@@ -113,6 +118,10 @@ class MainWindow(QWidget):
         self._mastering_worker: Optional[MasteringWorker] = None
         self._active_mastering_request: Optional[MasteringRequest] = None
         self._mastering_dialog: Optional[ConversionDialog] = None
+        self._trim_thread: Optional[QThread] = None
+        self._trim_worker: Optional[TrimWorker] = None
+        self._active_trim_request: Optional[TrimRequest] = None
+        self._trim_dialog: Optional[ConversionDialog] = None
         self._mastering_parameters: MasteringParameters = (
             self.mastering_engine.parameters_for_preset(
                 self.mastering_engine.default_preset()
@@ -214,6 +223,16 @@ class MainWindow(QWidget):
         self.convert_tab.formatChanged.connect(self._on_format_changed)
         self.tabs.addTab(self.convert_tab, "Convert")
 
+        self.trim_tab = TrimTab()
+        self.trim_tab.selectFilesRequested.connect(self._open_trim_file_dialog)
+        self.trim_tab.filesDropped.connect(self._handle_trim_files)
+        self.trim_tab.clearSelectionRequested.connect(self._clear_trim_selection)
+        self.trim_tab.destinationRequested.connect(
+            self._choose_trim_output_directory
+        )
+        self.trim_tab.trimmingRequested.connect(self._start_trimming)
+        self.tabs.addTab(self.trim_tab, "Trim silence")
+
         self.mastering_tab = MasteringTab(self._preset_definitions)
         self.mastering_tab.set_current_preset(self._pref_mastering_preset)
         self.mastering_tab.set_parameters(self._mastering_parameters)
@@ -293,6 +312,18 @@ class MainWindow(QWidget):
         self.convert_tab.show_no_files()
         self._update_conversion_preview()
 
+        self.trim_files = []
+        if (
+            self._pref_remember_destination
+            and self._pref_last_output_directory
+            and self._pref_last_output_directory.exists()
+        ):
+            self.trim_output_directory = self._pref_last_output_directory
+        else:
+            self.trim_output_directory = None
+        self.trim_tab.show_no_files()
+        self._update_trim_preview()
+
         self.mastering_files = []
         if (
             self._pref_remember_destination
@@ -341,6 +372,16 @@ class MainWindow(QWidget):
         )
         if file_paths:
             self._handle_mastering_files([Path(path) for path in file_paths])
+
+    def _open_trim_file_dialog(self) -> None:
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select audio files to trim",
+            "",
+            "Audio (*.mp3 *.wav *.ogg *.flac *.aac *.wma *.m4a *.aiff *.aif *.opus)",
+        )
+        if file_paths:
+            self._handle_trim_files([Path(path) for path in file_paths])
 
     def _handle_input_files(self, file_paths: Sequence[Path]) -> None:
         valid_files: List[Path] = []
@@ -492,6 +533,81 @@ class MainWindow(QWidget):
             self.mastering_output_directory = None
         self._update_mastering_preview()
 
+    def _clear_trim_selection(self) -> None:
+        self.trim_files = []
+        self.trim_tab.show_no_files()
+        if (
+            self._pref_remember_destination
+            and self._pref_last_output_directory
+            and self._pref_last_output_directory.exists()
+        ):
+            self.trim_output_directory = self._pref_last_output_directory
+        else:
+            self.trim_output_directory = None
+        self._update_trim_preview()
+
+    def _handle_trim_files(self, file_paths: Sequence[Path]) -> None:
+        valid_files: List[Path] = []
+        unsupported: List[Path] = []
+        missing: List[Path] = []
+        seen: Set[Path] = set()
+
+        for file_path in file_paths:
+            resolved = file_path.resolve(strict=False)
+            if not file_path.exists():
+                missing.append(file_path)
+                continue
+            if file_path.suffix.lower() not in AUDIO_SUFFIXES:
+                unsupported.append(file_path)
+                continue
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            valid_files.append(file_path)
+
+        skipped_messages = []
+        if missing:
+            skipped_messages.append(
+                "Missing files: " + ", ".join(path.name for path in missing)
+            )
+
+        if unsupported:
+            skipped_messages.append(
+                "Unsupported formats: " + ", ".join(path.name for path in unsupported)
+            )
+
+        message_lines = list(skipped_messages)
+
+        if not valid_files:
+            if message_lines:
+                message_lines.append("")
+            message_lines.append("Please select at least one supported audio file.")
+
+        if message_lines:
+            title = "Some files were skipped"
+            if not valid_files:
+                title = "No valid files"
+            QMessageBox.warning(
+                self,
+                title,
+                "\n".join(message_lines),
+            )
+            if not valid_files:
+                return
+
+        self.trim_files = valid_files
+        if self.trim_output_directory is None:
+            if (
+                self._pref_remember_destination
+                and self._pref_last_output_directory
+                and self._pref_last_output_directory.exists()
+            ):
+                self.trim_output_directory = self._pref_last_output_directory
+            else:
+                self.trim_output_directory = self.trim_files[0].parent
+        self.trim_tab.show_selected_files(self.trim_files)
+        self._update_trim_preview()
+
     def _choose_output_directory(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self, "Select destination folder"
@@ -509,6 +625,15 @@ class MainWindow(QWidget):
             self.mastering_output_directory = Path(directory)
             self._save_last_output_directory(self.mastering_output_directory)
             self._update_mastering_preview()
+
+    def _choose_trim_output_directory(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select trimming destination"
+        )
+        if directory:
+            self.trim_output_directory = Path(directory)
+            self._save_last_output_directory(self.trim_output_directory)
+            self._update_trim_preview()
 
     def _update_conversion_preview(self) -> None:
         if not self.output_directory and self.input_files:
@@ -568,6 +693,34 @@ class MainWindow(QWidget):
                 f"{len(self.mastering_files)} files will be mastered ({preset})"
             )
 
+    def _update_trim_preview(self) -> None:
+        if not self.trim_output_directory and self.trim_files:
+            self.trim_output_directory = self.trim_files[0].parent
+
+        if self.trim_output_directory and (
+            self.trim_output_directory.is_file()
+            or (
+                self.trim_output_directory.suffix
+                and not self.trim_output_directory.is_dir()
+            )
+        ):
+            self.trim_output_directory = self.trim_output_directory.parent
+
+        self.trim_tab.set_output_directory(self.trim_output_directory)
+
+        if not self.trim_files:
+            self.trim_tab.set_status("Ready")
+            return
+
+        if len(self.trim_files) == 1:
+            self.trim_tab.set_status(
+                f"Ready to trim silence from '{self.trim_files[0].name}'"
+            )
+        else:
+            self.trim_tab.set_status(
+                f"{len(self.trim_files)} files will be trimmed"
+            )
+
     def _export_audio(self) -> None:
         if not self.input_files:
             QMessageBox.warning(
@@ -615,6 +768,60 @@ class MainWindow(QWidget):
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.finished.connect(self._on_conversion_finished)
         self._thread.start()
+
+    def _start_trimming(self) -> None:
+        if not self.trim_files:
+            QMessageBox.warning(
+                self,
+                "No files",
+                "Please choose audio files before trimming silence.",
+            )
+            return
+
+        destination = self.trim_output_directory or self.trim_files[0].parent
+        if destination is None:
+            QMessageBox.warning(
+                self,
+                "No destination",
+                "Please choose a folder to store the trimmed files.",
+            )
+            return
+
+        self._save_last_output_directory(destination)
+
+        request = TrimRequest(
+            input_paths=tuple(self.trim_files),
+            output_directory=destination,
+            silence_threshold=self.trim_tab.silence_threshold,
+            minimum_silence_ms=self.trim_tab.minimum_silence_ms,
+            padding_ms=self.trim_tab.padding_ms,
+            overwrite_existing=self._pref_overwrite_existing,
+        )
+
+        self._lock_trim_ui()
+        self.trim_tab.set_status("Trimming…")
+
+        self._active_trim_request = request
+        self._trim_dialog = ConversionDialog(self)
+        self._trim_dialog.show_running(
+            title="Trimming…",
+            headline="Trimming silence from audio files…",
+            message="Please wait while the files are trimmed.",
+        )
+        self._trim_dialog.finished.connect(self._on_trim_dialog_closed)
+        self._trim_dialog.show()
+
+        self._trim_thread = QThread(self)
+        self._trim_worker = TrimWorker(self.trimmer, request)
+        self._trim_worker.moveToThread(self._trim_thread)
+        self._trim_thread.started.connect(self._trim_worker.run)
+        self._trim_worker.succeeded.connect(self._on_trimming_success)
+        self._trim_worker.failed.connect(self._on_trimming_error)
+        self._trim_worker.finished.connect(self._trim_thread.quit)
+        self._trim_worker.finished.connect(self._trim_worker.deleteLater)
+        self._trim_thread.finished.connect(self._trim_thread.deleteLater)
+        self._trim_thread.finished.connect(self._on_trimming_finished)
+        self._trim_thread.start()
 
     def _start_mastering(self) -> None:
         if not self.mastering_files:
@@ -696,6 +903,35 @@ class MainWindow(QWidget):
         self.convert_tab.set_status("Conversion failed")
         if self._progress_dialog:
             self._progress_dialog.show_finished("Conversion failed", message)
+
+    @Slot()
+    def _on_trimming_finished(self) -> None:
+        self._trim_thread = None
+        self._trim_worker = None
+        self._active_trim_request = None
+        self._unlock_trim_ui()
+
+    @Slot(str)
+    def _on_trimming_success(self, message: str) -> None:
+        self.trim_tab.set_status("Completed")
+        if self._trim_dialog:
+            self._trim_dialog.show_finished("Trimming completed", message)
+        if self._pref_open_destination and self.trim_output_directory:
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.trim_output_directory))
+            )
+        if self._pref_auto_clear_selection:
+            self._clear_trim_selection()
+            self.trim_tab.set_status("Completed")
+
+    @Slot(str)
+    def _on_trimming_error(self, message: str) -> None:
+        self.trim_tab.set_status("Trimming failed")
+        if self._trim_dialog:
+            self._trim_dialog.show_finished("Trimming failed", message)
+
+    def _on_trim_dialog_closed(self, _: int) -> None:
+        self._trim_dialog = None
 
     def _on_progress_dialog_closed(self, _: int) -> None:
         self._progress_dialog = None
@@ -796,6 +1032,20 @@ class MainWindow(QWidget):
         self.convert_tab.set_format_enabled(True)
         self.convert_tab.set_clear_enabled(bool(self.input_files))
 
+    def _lock_trim_ui(self) -> None:
+        self.trim_tab.set_trim_enabled(False)
+        self.trim_tab.set_browse_enabled(False)
+        self.trim_tab.set_clear_enabled(False)
+        self.trim_tab.set_destination_enabled(False)
+        self.trim_tab.set_controls_enabled(False)
+
+    def _unlock_trim_ui(self) -> None:
+        self.trim_tab.set_trim_enabled(True)
+        self.trim_tab.set_browse_enabled(True)
+        self.trim_tab.set_destination_enabled(True)
+        self.trim_tab.set_controls_enabled(True)
+        self.trim_tab.set_clear_enabled(bool(self.trim_files))
+
     def _lock_mastering_ui(self) -> None:
         self.mastering_tab.set_export_enabled(False)
         self.mastering_tab.set_browse_enabled(False)
@@ -814,6 +1064,9 @@ class MainWindow(QWidget):
         if self._thread and self._thread.isRunning():
             self._thread.quit()
             self._thread.wait(2000)
+        if self._trim_thread and self._trim_thread.isRunning():
+            self._trim_thread.quit()
+            self._trim_thread.wait(2000)
         if self._mastering_thread and self._mastering_thread.isRunning():
             self._mastering_thread.quit()
             self._mastering_thread.wait(2000)
