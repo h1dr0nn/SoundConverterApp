@@ -1,33 +1,172 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FiUpload, FiFolder } from 'react-icons/fi';
+import { open } from '@tauri-apps/api/dialog';
 import { designTokens } from '../utils/theme';
+import { isAudioFile } from '../utils/audioUtils';
 
-export function DragDropArea() {
+export function DragDropArea({ onFilesAdded }) {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (
+      e.clientX <= rect.left ||
+      e.clientX >= rect.right ||
+      e.clientY <= rect.top ||
+      e.clientY >= rect.bottom
+    ) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    const audioFiles = droppedFiles.filter(isAudioFile);
+
+    if (audioFiles.length > 0) {
+      onFilesAdded(audioFiles);
+    } else if (droppedFiles.length > 0) {
+      alert('Please drop audio files only (MP3, WAV, OGG, FLAC, AAC, M4A, WMA, AIFF, OPUS)');
+    }
+  };
+
+  const handleFilePickerClick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('[DragDropArea] Browse button clicked');
+    
+    try {
+      console.log('[DragDropArea] Opening file dialog...');
+      
+      const selected = await open({
+        multiple: true,
+        filters: [{
+          name: 'Audio Files',
+          extensions: ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'aiff', 'opus']
+        }]
+      });
+
+      console.log('[DragDropArea] Dialog result:', selected);
+
+      if (!selected) {
+        console.log('[DragDropArea] User cancelled dialog');
+        return;
+      }
+
+      const paths = Array.isArray(selected) ? selected : [selected];
+      console.log('[DragDropArea] Selected paths:', paths);
+
+      // For Tauri file paths, we need to create File objects
+      // Since we can't directly create Files from paths in browser,
+      // we'll create minimal file objects with the path info
+      const files = paths.map(path => {
+        const fileName = path.split('/').pop().split('\\').pop();
+        console.log('[DragDropArea] Processing file:', fileName);
+        
+        // Create a minimal File-like object
+        return {
+          name: fileName,
+          path: path,
+          size: 0, // We don't have size from dialog
+          type: 'audio/*',
+          // Add lastModified as current time
+          lastModified: Date.now()
+        };
+      });
+
+      console.log('[DragDropArea] Created file objects:', files);
+      
+      if (files.length > 0) {
+        onFilesAdded(files);
+        console.log('[DragDropArea] Files added successfully');
+      }
+    } catch (error) {
+      console.error('[DragDropArea] File picker error:', error);
+      alert(`Error opening file picker: ${error.message || error}`);
+    }
+  };
+
   return (
     <div
-      className="glass-surface relative flex flex-col items-center justify-center overflow-hidden rounded-card border border-white/60 bg-white/50 p-10 shadow-soft transition duration-smooth hover:-translate-y-[1px] hover:shadow-xl dark:border-white/10 dark:bg-white/10"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={cn(
+        'glass-surface relative flex flex-col items-center justify-center overflow-hidden rounded-card border-2 bg-white p-10 shadow-soft transition-all duration-smooth dark:bg-white/10',
+        isDragging
+          ? 'border-accent bg-accent/10 shadow-xl dark:bg-accent/20 scale-[1.02]'
+          : 'border-slate-200 hover:border-slate-300 hover:shadow-xl dark:border-white/10 dark:hover:border-white/20'
+      )}
       style={{
         backdropFilter: `blur(${designTokens.blur})`,
         WebkitBackdropFilter: `blur(${designTokens.blur})`,
       }}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-white/20 to-white/5 opacity-70 dark:from-white/5 dark:via-white/0 dark:to-white/5" />
+      <div className={cn(
+        'absolute inset-0 bg-gradient-to-br transition-all duration-smooth',
+        isDragging
+          ? 'from-accent/20 via-accent/10 to-accent/5'
+          : 'from-white/40 via-white/20 to-white/5 opacity-70 dark:from-white/5 dark:via-white/0 dark:to-white/5'
+      )} />
+      
       <div className="relative flex flex-col items-center gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/80 text-3xl shadow-inner backdrop-blur-[20px] dark:bg-white/10">
-          <span role="img" aria-label="sparkles">
-            ✨
-          </span>
+        <div className={cn(
+          'flex h-16 w-16 items-center justify-center rounded-2xl shadow-inner backdrop-blur-[20px] transition-all duration-smooth',
+          isDragging
+            ? 'bg-accent/20 dark:bg-accent/30'
+            : 'bg-white/80 dark:bg-white/10'
+        )}>
+          {isDragging ? (
+            <FiFolder className="h-8 w-8 text-accent" />
+          ) : (
+            <FiUpload className="h-8 w-8 text-slate-600 dark:text-slate-300" />
+          )}
         </div>
+        
         <div className="space-y-2">
-          <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">Drop your audio files</p>
+          <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {isDragging ? 'Drop files here' : 'Drop your audio files'}
+          </p>
           <p className="max-w-xs text-sm text-slate-600 dark:text-slate-300">
-            Drag files from Finder or Explorer into this space. We will wire up conversion in the next phase.
+            {isDragging 
+              ? 'Release to add files to the queue'
+              : 'Drag files from Finder or click the button below'}
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-full bg-white/80 px-5 py-2 text-sm font-semibold text-slate-800 shadow-md dark:bg-white/10 dark:text-slate-100">
-          <span className="h-2 w-2 rounded-full bg-accent" aria-hidden />
-          Drag & Drop Placeholder
-        </div>
+        
+        <button
+          onClick={handleFilePickerClick}
+          type="button"
+          className="flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white shadow-md transition duration-smooth hover:-translate-y-[1px] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
+        >
+          <FiFolder className="h-4 w-4" />
+          Browse Files
+        </button>
       </div>
     </div>
   );
+}
+
+// Import cn utility
+function cn(...classes) {
+  return classes.filter(Boolean).join(' ');
 }

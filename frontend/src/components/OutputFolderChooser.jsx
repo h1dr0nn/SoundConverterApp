@@ -1,30 +1,46 @@
 import React from 'react';
+import { FiFolder } from 'react-icons/fi';
+import { open } from '@tauri-apps/api/dialog';
 
 export function OutputFolderChooser({ path, onChoose }) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Destination</p>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Output folder</h3>
-        </div>
-        <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-100">
-          Ready
-        </span>
-      </div>
+  const handleChooseFolder = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: 'Select Output Folder'
+      });
 
-      <div className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/60 px-4 py-3 shadow-sm transition duration-smooth hover:shadow-lg dark:border-white/10 dark:bg-white/10">
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <p className="text-xs uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">Current path</p>
-          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{path}</p>
+      if (selected && typeof selected === 'string') {
+        onChoose(selected);
+      }
+    } catch (error) {
+      console.error('Folder picker error:', error);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Output Folder</p>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+          <FiFolder className="h-4 w-4 flex-shrink-0 text-slate-500 dark:text-slate-400" />
+          <span className="flex-1 truncate font-mono text-xs">
+            {path || 'No folder selected'}
+          </span>
         </div>
         <button
           type="button"
-          onClick={onChoose}
-          className="rounded-full bg-accent px-4 py-2 text-xs font-semibold text-white shadow-md transition duration-smooth hover:translate-y-[1px] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          onClick={handleChooseFolder}
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-md transition duration-smooth hover:-translate-y-[1px] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent dark:border-white/10 dark:bg-white/10 dark:text-slate-100"
         >
-          Choose…
+          Choose Folder
         </button>
+        {!path && (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Auto-filled from first file, or choose manually
+          </p>
+        )}
       </div>
     </div>
   );
