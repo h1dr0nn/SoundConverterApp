@@ -107,15 +107,13 @@ class SoundConverter:
     @staticmethod
     def _export_batch(
         request: ConversionRequest,
-        progress_callback: Optional[Callable[["ConversionProgress"], None]],
+        progress_callback: Optional[Callable[[ConversionProgress], None]],
         log_callback: Optional[Callable[[str], None]],
     ) -> Tuple[Path, ...]:
-        converted: list[Path] = []
-        request.output_directory.mkdir(parents=True, exist_ok=True)
+        """Export all files in the batch."""
+        converted = []
 
-        for index, (input_path, output_path) in enumerate(
-            request.outputs(), start=1
-        ):
+        for index, (input_path, output_path) in enumerate(request.outputs(), start=1):
             if progress_callback:
                 progress_callback(
                     ConversionProgress(
@@ -129,13 +127,31 @@ class SoundConverter:
 
             try:
                 converter = _resolve_converter_path(request)
+                
+                # Check for in-place conversion (input == output)
+                # FFmpeg cannot read/write same file, so we write to temp file first
+                use_temp_file = input_path.resolve() == output_path.resolve()
+                actual_output_path = output_path
+                
+                if use_temp_file:
+                    actual_output_path = output_path.with_suffix(f".tmp{output_path.suffix}")
+                    if log_callback:
+                        log_callback(f"In-place conversion detected. Using temp file: {actual_output_path}")
+
                 _run_ffmpeg_conversion(
                     converter,
                     input_path,
-                    output_path,
+                    actual_output_path,
                     request.output_format.lower(),
                     log_callback,
                 )
+                
+                # If using temp file, move it to final destination after success
+                if use_temp_file:
+                    import shutil
+                    shutil.move(str(actual_output_path), str(output_path))
+                    if log_callback:
+                        log_callback(f"Renamed temp file to: {output_path}")
             except Exception as exc:
                 raise ExportFailureError(input_path, exc, len(request.input_paths))
 

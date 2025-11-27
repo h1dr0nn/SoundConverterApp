@@ -19,7 +19,7 @@ export function ErrorModal({ isOpen, errorFiles, onClose }) {
         <div className="mb-4 flex items-start justify-between">
           <div>
             <div className="mb-1 flex items-center gap-2">
-              <FiAlert Triangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+              <FiAlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
                 Processing Errors
               </h3>

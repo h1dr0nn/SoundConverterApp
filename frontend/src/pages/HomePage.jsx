@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiSettings } from 'react-icons/fi';
 import { listen } from '@tauri-apps/api/event';
 import { dirname } from '@tauri-apps/api/path';
+import { readBinaryFile } from '@tauri-apps/api/fs';
 import { DragDropArea } from '../components/DragDropArea';
 import { FileListPanel } from '../components/FileListPanel';
 import { FormatSelector } from '../components/FormatSelector';
@@ -16,24 +17,28 @@ import { useTheme } from '../hooks/useTheme';
 import { useConvertAudio } from '../hooks/useTauriCommand';
 import { designTokens } from '../utils/theme';
 import { themeClasses } from '../utils/themeColors';
-import { getFileMetadata } from '../utils/audioUtils';
+import { getFileMetadata, formatFileSize, formatDuration, getAudioDuration } from '../utils/audioUtils';
 import { notifySuccess, notifyError } from '../utils/notifications';
+import { useSettingsContext } from '../context/SettingsContext';
 
 const formatOptions = ['AAC', 'MP3', 'WAV', 'FLAC', 'OGG', 'M4A'];
 
-export function HomePage({ onOpenSettings }) {
+export function HomePage({ 
+  onOpenSettings, 
+  files, 
+  setFiles, 
+  outputFolder, 
+  setOutputFolder 
+}) {
   const { theme } = useTheme();
   const { convert, loading: converting } = useConvertAudio();
+  const { settings } = useSettingsContext();
 
   // Mode state
   const [mode, setMode] = useState('convert'); // 'convert' | 'master' | 'trim'
 
-  // File management
-  const [files, setFiles] = useState([]);
-  const [outputFolder, setOutputFolder] = useState('');
-
-  // Convert mode
-  const [selectedFormat, setSelectedFormat] = useState('AAC');
+  // Convert mode - use default from settings
+  const [selectedFormat, setSelectedFormat] = useState(settings.defaultFormat || 'AAC');
 
   // Master mode
   const [masterPreset, setMasterPreset] = useState('Music');
@@ -58,25 +63,174 @@ export function HomePage({ onOpenSettings }) {
   const [errorFiles, setErrorFiles] = useState([]);
   const [toast, setToast] = useState(null);
 
+  // Sync default format from settings
+  useEffect(() => {
+    setSelectedFormat(settings.defaultFormat || 'AAC');
+  }, [settings.defaultFormat]);
+
   // Handle files added from drag & drop or file picker
   const handleFilesAdded = async (newFiles) => {
     try {
-      const fileMetadataPromises = newFiles.map(file => getFileMetadata(file));
-      const fileMetadata = await Promise.all(fileMetadataPromises);
+      // Create minimal file objects immediately to show in UI
+      const immediateFiles = newFiles.map(file => {
+        const name = file.name || 'Unknown';
+        const parts = name.split('.');
+        let format = parts.length > 1 ? parts.pop().toUpperCase() : 'FILE';
+        format = format.replace(/[^A-Z0-9]/g, '').substring(0, 4) || 'FILE';
+        
+        return {
+          id: crypto.randomUUID(),
+          file,
+          name,
+          path: file.path || name,
+          format,
+          size: formatFileSize(file.size || 0),
+          sizeBytes: file.size || 0,
+          duration: '--',
+          status: 'loading',
+          error: null,
+          output: null
+        };
+      });
 
-      // Auto-fill output folder from first file if not set
-      if (files.length === 0 && newFiles.length > 0 && !outputFolder) {
-        try {
-          const firstFilePath = newFiles[0].path || newFiles[0].name;
-          const dir = await dirname(firstFilePath);
-          setOutputFolder(dir);
-        } catch (error) {
-          console.error('Failed to get directory:', error);
+      // Filter out duplicates by comparing paths
+      const existingPaths = new Set(files.map(f => f.path));
+      const newUniqueFiles = immediateFiles.filter(file => !existingPaths.has(file.path));
+      
+      if (newUniqueFiles.length === 0) {
+        const duplicateCount = immediateFiles.length;
+        if (duplicateCount > 0) {
+          setToast({ 
+            type: 'info', 
+            message: `${duplicateCount} duplicate file(s) skipped` 
+          });
+        }
+        return;
+      }
+
+      const duplicateCount = immediateFiles.length - newUniqueFiles.length;
+      if (duplicateCount > 0) {
+        setToast({ 
+          type: 'info', 
+          message: `${duplicateCount} duplicate file(s) skipped` 
+        });
+      }
+
+      // Add files to UI immediately
+      setFiles(prev => [...prev, ...newUniqueFiles]);
+      setToast({ type: 'info', message: `Adding ${newUniqueFiles.length} file(s)...` });
+
+      // Auto-fill output folder if not already set
+      if (!outputFolder && newUniqueFiles.length > 0) {
+        if (settings.outputLocation === 'Same as source') {
+          try {
+            const firstFilePath = newUniqueFiles[0].path;
+            
+            // Check if path contains directory separators
+            if (firstFilePath && (firstFilePath.includes('/') || firstFilePath.includes('\\'))) {
+              const dir = await dirname(firstFilePath);
+              setOutputFolder(dir);
+            } else {
+              // Drag files don't have full path, fallback to Downloads
+              const { downloadDir } = await import('@tauri-apps/api/path');
+              const downloads = await downloadDir();
+              setOutputFolder(downloads);
+            }
+          } catch (error) {
+            console.error('Failed to get directory:', error);
+          }
+        } else if (settings.outputLocation === 'Custom folder' && settings.customOutputFolder) {
+          setOutputFolder(settings.customOutputFolder);
+        } else {
+          // Default to Downloads if no setting
+          try {
+            const { downloadDir } = await import('@tauri-apps/api/path');
+            const downloads = await downloadDir();
+            setOutputFolder(downloads);
+          } catch (error) {
+            console.error('Failed to get Downloads folder:', error);
+          }
         }
       }
 
-      setFiles(prev => [...prev, ...fileMetadata]);
-      setToast({ type: 'info', message: `Added ${newFiles.length} file(s) to queue` });
+      // Load metadata for each file independently in background
+      const maxSizeMB = parseInt(settings.maxFileSize);
+      const maxSizeBytes = maxSizeMB * 1024 * 1024;
+
+      newUniqueFiles.forEach(immediateFile => {
+        // Each file gets its own async processing
+        (async () => {
+          try {
+            // Check size limit first (already have size for drag, need to read for browse)
+            let actualFile = immediateFile.file;
+            let fileSize = immediateFile.sizeBytes;
+
+            // If this is a path-based file from browse, read it now
+            if (actualFile._needsReading) {
+              try {
+                const content = await readBinaryFile(actualFile.path);
+                actualFile = new File([content], actualFile.name, {
+                  type: 'audio/*',
+                  lastModified: actualFile.lastModified
+                });
+                actualFile.path = immediateFile.path;
+                fileSize = actualFile.size;
+
+                // Update size in UI
+                setFiles(prev => prev.map(f => 
+                  f.id === immediateFile.id 
+                    ? { ...f, size: formatFileSize(fileSize), sizeBytes: fileSize }
+                    : f
+                ));
+              } catch (error) {
+                console.error('Failed to read file:', immediateFile.path, error);
+                setFiles(prev => prev.map(f => 
+                  f.id === immediateFile.id 
+                    ? { ...f, status: 'error', error: 'Failed to read file' }
+                    : f
+                ));
+                return;
+              }
+            }
+
+            // Check size limit
+            if (fileSize > maxSizeBytes) {
+              setFiles(prev => prev.map(f => 
+                f.id === immediateFile.id 
+                  ? { ...f, status: 'error', error: `Exceeds ${maxSizeMB}MB limit` }
+                  : f
+              ));
+              return;
+            }
+
+            // Load duration in background
+            let duration = '--';
+            if (actualFile instanceof File && typeof actualFile.arrayBuffer === 'function') {
+              try {
+                const durationSeconds = await getAudioDuration(actualFile);
+                duration = formatDuration(durationSeconds);
+              } catch (error) {
+                // Duration stays as '--' if fails
+              }
+            }
+
+            // Update with duration and mark as ready
+            setFiles(prev => prev.map(f => 
+              f.id === immediateFile.id 
+                ? { ...f, duration, status: 'ready' }
+                : f
+            ));
+          } catch (error) {
+            console.error('Failed to load metadata for', immediateFile.name, error);
+            setFiles(prev => prev.map(f => 
+              f.id === immediateFile.id 
+                ? { ...f, status: 'error', error: 'Failed to load' }
+                : f
+            ));
+          }
+        })();
+      });
+
     } catch (error) {
       console.error('Error adding files:', error);
       setToast({ type: 'error', message: 'Failed to add files' });
@@ -98,13 +252,24 @@ export function HomePage({ onOpenSettings }) {
     setFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
+  // Handle reload - reset all files to ready
+  const handleReload = async () => {
+    setFiles(prev => prev.map(f => ({
+      ...f,
+      status: f.status === 'error' || f.status === 'done' ? 'ready' : f.status,
+      error: null,
+      output: null
+    })));
+  };
+
   // Build payload for backend based on mode
   const buildPayload = () => {
-    const filePaths = files.map(f => f.path);
+    const filePaths = files.filter(f => f.status === 'ready').map(f => f.path);
 
     const basePayload = {
-      files: filePaths,
-      output: outputFolder || './'
+      files: filePaths,  // Required by Rust command
+      output: outputFolder || './',
+      concurrent_files: parseInt(settings.concurrentFiles) || 2,
     };
 
     if (mode === 'convert') {
@@ -116,7 +281,9 @@ export function HomePage({ onOpenSettings }) {
     } else if (mode === 'master') {
       return {
         operation: 'master',
-        input_paths: filePaths,
+        ...basePayload,
+        format: 'wav',  // Dummy value for Rust validation
+        input_paths: filePaths,  // For Python backend
         output_directory: outputFolder || './',
         preset: masterPreset,
         parameters: masterParams
@@ -124,7 +291,9 @@ export function HomePage({ onOpenSettings }) {
     } else if (mode === 'trim') {
       return {
         operation: 'trim',
-        input_paths: filePaths,
+        ...basePayload,
+        format: 'wav',  // Dummy value for Rust validation
+        input_paths: filePaths,  // For Python backend
         output_directory: outputFolder || './',
         silence_threshold: trimThreshold,
         minimum_silence_ms: trimMinSilence,
@@ -146,19 +315,57 @@ export function HomePage({ onOpenSettings }) {
     }
 
     try {
-      // Reset all files to pending
-      setFiles(prev => prev.map(f => ({ ...f, status: 'pending', error: null, output: null })));
+      // Reset all files to ready (in case they were done/error from previous run)
+      setFiles(prev => prev.map(f => ({ ...f, status: 'ready', error: null, output: null })));
       setProgress(0);
       setProcessingStatus('Starting...');
       setErrorFiles([]);
 
       const payload = buildPayload();
+      
+      if (settings.enableLogging) {
+        console.log('[HomePage] Starting conversion with payload:', payload);
+        console.log('[HomePage] Files:', files.length);
+        console.log('[HomePage] Mode:', mode);
+      }
+
       await convert(payload);
 
     } catch (error) {
       console.error('Processing error:', error);
-      setToast({ type: 'error', message: error.message || 'Processing failed' });
-      await notifyError('Processing Failed', error.message || 'An error occurred');
+      if (settings.enableLogging) {
+        console.error('[HomePage] Full error details:', error);
+      }
+      
+      // Mark all files as failed
+      setFiles(prev => prev.map(f => ({
+        ...f,
+        status: 'error',
+        error: 'Failed to start processing'
+      })));
+      
+      setProgress(0);
+      setProcessingStatus('Failed');
+      
+      // Show user-friendly error
+      const isFFmpegMissing = error.message?.toLowerCase().includes('located') || 
+                             error.message?.toLowerCase().includes('install ffmpeg');
+      
+      let userMessage = 'Processing failed. Please try again.';
+      
+      if (isFFmpegMissing) {
+        userMessage = 'Audio processing tools not found. Please restart the app.';
+      } else if (error.message?.includes('missing field')) {
+        userMessage = 'Invalid configuration. Please check your settings.';
+      } else if (error.message) {
+        // Only show error message if it's not too technical
+        const simplifiedMessage = error.message.replace(/`.*?`/g, '').trim();
+        if (simplifiedMessage.length < 100 && !simplifiedMessage.includes('Error:')) {
+          userMessage = simplifiedMessage;
+        }
+      }
+      
+      setToast({ type: 'error', message: userMessage });
     }
   };
 
@@ -201,21 +408,41 @@ export function HomePage({ onOpenSettings }) {
             })));
 
             setToast({ type: 'success', message: message || 'Processing complete!' });
-            notifySuccess('Processing Complete', `${files.length} file(s) processed successfully`);
-          } else {
-            // Check for errors in files
-            const failedFiles = files.filter((f, i) => {
-              // If we have error info from backend, use it
-              return !outputs || !outputs[i];
-            }).map(f => ({ ...f, error: 'Processing failed' }));
-
-            if (failedFiles.length > 0) {
-              setErrorFiles(failedFiles);
+            if (settings.notifications) {
+              notifySuccess('Processing Complete', `${files.length} file(s) processed successfully`);
             }
 
-            setProgress(100);
-            setProcessingStatus('Completed with errors');
-            notifyError('Processing Errors', `${failedFiles.length} file(s) failed`);
+            // Auto-clear if enabled
+            if (settings.autoClear) {
+              setTimeout(() => {
+                handleClearAll();
+              }, 2000); // Wait 2s for user to see completion
+            }
+          } else {
+            // Error occurred - mark all files as failed
+            setFiles(prev => prev.map(f => ({
+              ...f,
+              status: 'error',
+              error: 'Processing failed'
+            })));
+
+            setProgress(0);
+            setProcessingStatus('Failed');
+            setCurrentFile('');
+            
+            // Show user-friendly error message
+            const isFFmpegMissing = message?.toLowerCase().includes('located') || 
+                                   message?.toLowerCase().includes('install ffmpeg');
+            
+            let userMessage = 'Processing failed. Check your files and try again.';
+            
+            if (isFFmpegMissing) {
+              userMessage = 'Audio processing tools not found. Please restart the app.';
+            } else if (message && message.length < 100 && !message.includes('Error:')) {
+              userMessage = message;
+            }
+            
+            setToast({ type: 'error', message: userMessage });
           }
         }
       });
@@ -235,7 +462,8 @@ export function HomePage({ onOpenSettings }) {
     status: processingStatus
   };
 
-  const canProcess = files.length > 0 && outputFolder && !converting;
+  const hasReadyFiles = files.some(f => f.status === 'ready');
+  const canProcess = hasReadyFiles && outputFolder && !converting;
 
   return (
     <div
@@ -298,7 +526,7 @@ export function HomePage({ onOpenSettings }) {
           {/* Main Content */}
           <main className="space-y-6">
             {/* Drag & Drop + Controls */}
-            <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.15fr,0.85fr]`}>
+            <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.5fr,1fr]`}>
               <DragDropArea onFilesAdded={handleFilesAdded} />
               <div className={`flex flex-col justify-between gap-6 rounded-card border ${themeClasses.surface} p-4`}>
                 {mode === 'convert' && (
@@ -327,13 +555,14 @@ export function HomePage({ onOpenSettings }) {
             </section>
 
             {/* File List + Progress */}
-            <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.1fr,0.9fr]`}>
+            <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.5fr,1fr]`}>
               <FileListPanel 
                 files={files} 
-                onClearAll={handleClearAll}
+                onClearAll={handleClearAll} 
                 onRemoveFile={handleRemoveFile}
+                onReload={handleReload}
               />
-              <div className="flex flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-4">
                 <ProgressIndicator 
                   progress={progress} 
                   status={processingStatus}

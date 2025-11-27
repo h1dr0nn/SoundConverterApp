@@ -80,19 +80,99 @@ pub fn execute_python_conversion(
         }
     }
 
-    // Resolve bundled FFmpeg sidecar if available
-    if let Some(ffmpeg_path) = app.path_resolver().resolve_resource("binaries/ffmpeg") {
-        if ffmpeg_path.exists() {
-            if let Some(bin_dir) = ffmpeg_path.parent() {
-                let bin_dir_str = bin_dir.to_string_lossy().to_string();
-                command.env("SOUNDCONVERTER_BIN_DIR", &bin_dir_str);
+    // Resolve bundled FFmpeg sidecar based on target platform
+    let ffmpeg_binary_name = if cfg!(target_os = "windows") {
+        "ffmpeg-x86_64-pc-windows-msvc.exe"
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "ffmpeg-aarch64-apple-darwin"
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        "ffmpeg-x86_64-apple-darwin"
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        "ffmpeg-aarch64-unknown-linux-gnu"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "ffmpeg-x86_64-unknown-linux-gnu"
+    } else {
+        "ffmpeg" // fallback
+    };
 
-                log_message(
-                    "tauri",
-                    &format!("Using bundled FFmpeg from: {}", bin_dir.display()),
-                );
+    let ffmpeg_resource_path = format!("binaries/{}", ffmpeg_binary_name);
+
+    let mut ffmpeg_path_opt = app.path_resolver().resolve_resource(&ffmpeg_resource_path);
+
+    // In dev mode, if resource resolution fails, try direct filesystem path
+    if ffmpeg_path_opt.is_none()
+        || !ffmpeg_path_opt
+            .as_ref()
+            .map(|p| p.exists())
+            .unwrap_or(false)
+    {
+        if cfg!(debug_assertions) {
+            // Try relative to current working directory (dev mode)
+            let dev_path = std::env::current_dir().ok().map(|cwd| {
+                cwd.join("src-tauri")
+                    .join("binaries")
+                    .join(ffmpeg_binary_name)
+            });
+
+            if let Some(ref path) = dev_path {
+                if path.exists() {
+                    log_message(
+                        "tauri",
+                        &format!("Using dev FFmpeg path: {}", path.display()),
+                    );
+                    ffmpeg_path_opt = Some(path.clone());
+                }
             }
         }
+    }
+
+    if let Some(ffmpeg_path) = ffmpeg_path_opt {
+        if ffmpeg_path.exists() {
+            log_message(
+                "tauri",
+                &format!(
+                    "Using bundled FFmpeg ({}) at: {}",
+                    ffmpeg_binary_name,
+                    ffmpeg_path.display()
+                ),
+            );
+
+            // Set FFMPEG_BINARY to the exact binary path (highest priority)
+            command.env("FFMPEG_BINARY", &ffmpeg_path);
+
+            // Also add to PATH for fallback
+            if let Some(ffmpeg_bin_dir) = ffmpeg_path.parent() {
+                let ffmpeg_bin_str = ffmpeg_bin_dir.to_string_lossy().to_string();
+
+                if let Some(current_path) = std::env::var_os("PATH") {
+                    let mut entries = std::env::split_paths(&current_path).collect::<Vec<_>>();
+                    let ffmpeg_pathbuf = ffmpeg_bin_dir.to_path_buf();
+                    if !entries.contains(&ffmpeg_pathbuf) {
+                        entries.insert(0, ffmpeg_pathbuf);
+                        if let Ok(merged) = std::env::join_paths(entries) {
+                            command.env("PATH", merged);
+                        }
+                    }
+                } else {
+                    command.env("PATH", &ffmpeg_bin_str);
+                }
+
+                command.env("SOUNDCONVERTER_BIN_DIR", &ffmpeg_bin_str);
+            }
+        } else {
+            log_message(
+                "tauri",
+                &format!("FFmpeg binary not found at: {}", ffmpeg_path.display()),
+            );
+        }
+    } else {
+        log_message(
+            "tauri",
+            &format!(
+                "FFmpeg binary not found for resource path: {}",
+                ffmpeg_resource_path
+            ),
+        );
     }
 
     if let Some(python_home) = resolution.python_home.as_ref() {
@@ -209,14 +289,44 @@ pub fn execute_python_conversion(
 }
 
 fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
-    let backend_path = app
-        .path_resolver()
-        .resolve_resource("backend/main.py")
-        .unwrap_or_else(|| PathBuf::from("backend/main.py"));
+    // Try to resolve backend/main.py from multiple locations
+    // 1. Bundled resource (production)
+    // 2. Project root (dev mode)
+    // 3. Relative to current exe (fallback)
 
-    if !backend_path.exists() {
-        return Err("Unable to locate backend/main.py".to_string());
-    }
+    let backend_candidates = vec![
+        // Production: bundled resource
+        app.path_resolver().resolve_resource("backend/main.py"),
+        // Dev mode: relative to project root
+        std::env::current_dir()
+            .ok()
+            .map(|cwd| cwd.join("backend/main.py")),
+        // Dev mode alt: go up from src-tauri
+        std::env::current_dir()
+            .ok()
+            .and_then(|cwd| cwd.parent().map(|p| p.join("backend/main.py"))),
+        // Fallback: relative path
+        Some(PathBuf::from("backend/main.py")),
+    ];
+
+    let backend_path = backend_candidates
+        .into_iter()
+        .flatten()
+        .find(|path| path.exists())
+        .ok_or_else(|| {
+            let cwd = std::env::current_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "unknown".to_string());
+            format!(
+                "Unable to locate backend/main.py. Checked multiple locations. Current dir: {}",
+                cwd
+            )
+        })?;
+
+    log_message(
+        "tauri",
+        &format!("Found backend at: {}", backend_path.display()),
+    );
 
     // Try new binaries/ location first (for Phase 4 bundled Python)
     let binaries_root = app.path_resolver().resolve_resource("binaries");

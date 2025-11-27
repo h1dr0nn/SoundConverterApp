@@ -8,6 +8,19 @@
   background: linear-gradient(180deg, #fdfdff 0%, #f2f2f7 100%);
   min-height: 100vh;
   transition: background-color 180ms ease, color 180ms ease;
+
+  /* Fixed layout scale */
+  font-size: 18px;
+
+  /* Dynamic text scaling variables (Default: Medium) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
 }
 
 body {

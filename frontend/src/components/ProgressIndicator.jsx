@@ -18,9 +18,11 @@ export function ProgressIndicator({ progress, status, currentFile }) {
       </div>
 
       {currentFile && (
-        <p className="truncate text-xs text-slate-600 dark:text-slate-300">
-          Processing: {currentFile}
-        </p>
+        <div className="min-w-0">
+          <p className="truncate text-xs text-slate-600 dark:text-slate-300" title={currentFile}>
+            Processing: {currentFile.split(/[/\\]/).pop()}
+          </p>
+        </div>
       )}
 
       <div className="overflow-hidden rounded-full bg-white/60 shadow-inner dark:bg-white/5">

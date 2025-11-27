@@ -18,6 +18,24 @@ from app.handler.trimmer import SilenceTrimmer, TrimRequest
 from utils import ensure_ffmpeg, log_message
 
 
+def emit_progress(progress: ConversionProgress | dict) -> None:
+    """Emit progress updates to stdout as JSON."""
+    if isinstance(progress, ConversionProgress):
+        payload = {
+            "event": "progress",
+            "status": progress.status,
+            "index": progress.index,
+            "total": progress.total,
+            "file": str(progress.source),
+            "destination": str(progress.destination),
+        }
+    else:
+        payload = progress
+
+    print(json.dumps(payload))
+    sys.stdout.flush()
+
+
 def main() -> None:
     """Read JSON from stdin, run conversion, and print result."""
 
@@ -76,10 +94,11 @@ def handle_conversion(data: dict, ffmpeg_path: Path | None) -> dict | None:
     output_directory = Path(data.get("output") or data.get("output_directory") or ".")
     output_format = data.get("format") or data.get("output_format", "mp3")
     overwrite = data.get("overwrite_existing", True)
+    concurrent_files = data.get("concurrent_files", 1)  # Get concurrent setting
 
     log_message(
         "python",
-        f"Received conversion request (files={len(input_paths)}, format={output_format}, output={output_directory})",
+        f"Received conversion request (files={len(input_paths)}, format={output_format}, output={output_directory}, concurrent={concurrent_files})",
     )
 
     request = ConversionRequest(
@@ -180,20 +199,3 @@ def handle_trimming(data: dict) -> dict:
 
 if __name__ == "__main__":
     main()
-
-
-def emit_progress(progress: ConversionProgress | dict) -> None:
-    if isinstance(progress, ConversionProgress):
-        payload = {
-            "event": "progress",
-            "status": progress.status,
-            "index": progress.index,
-            "total": progress.total,
-            "file": str(progress.source),
-            "destination": str(progress.destination),
-        }
-    else:
-        payload = progress
-
-    print(json.dumps(payload))
-    sys.stdout.flush()

@@ -34,6 +34,31 @@ export const formatDuration = (seconds) => {
 };
 
 /**
+ * Get audio duration from file using Web Audio API
+ */
+export const getAudioDuration = async (file) => {
+  try {
+    // Create audio context
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Read file as ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Decode audio data
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    // Close context to free resources
+    audioContext.close();
+    
+    // Return duration in seconds
+    return audioBuffer.duration;
+  } catch (error) {
+    console.warn('Failed to get audio duration:', error);
+    return 0;
+  }
+};
+
+/**
  * Extract file metadata for display
  */
 export const getFileMetadata = async (file) => {
@@ -41,8 +66,23 @@ export const getFileMetadata = async (file) => {
   const path = file.path; // Tauri provides this on dropped files
   
   // Extract format from extension
+  // Extract format from extension
   const parts = name.split('.');
-  const format = parts.length > 1 ? parts.pop().toUpperCase() : 'UNKNOWN';
+  let format = parts.length > 1 ? parts.pop().toUpperCase() : 'FILE';
+  
+  // Sanitize format (max 4 chars, alphanumeric)
+  format = format.replace(/[^A-Z0-9]/g, '').substring(0, 4);
+  if (!format) format = 'FILE';
+  
+  // Get duration (only for real File objects, not path-only objects)
+  let duration = 0;
+  if (file instanceof File || file.arrayBuffer) {
+    try {
+      duration = await getAudioDuration(file);
+    } catch (error) {
+      console.warn('Failed to get duration for', name, error);
+    }
+  }
   
   return {
     id: crypto.randomUUID(),
@@ -51,8 +91,9 @@ export const getFileMetadata = async (file) => {
     path: path || name, // Fallback if path not available
     format,
     size: formatFileSize(size),
-    duration: '00:00', // Could use Web Audio API for real duration
-    status: 'pending',
+    sizeBytes: size, // Raw bytes for filtering
+    duration: formatDuration(duration),
+    status: 'loading', // Start with loading status
     error: null,
     output: null
   };

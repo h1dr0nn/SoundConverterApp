@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FiUpload, FiFolder } from 'react-icons/fi';
 import { open } from '@tauri-apps/api/dialog';
+import { readBinaryFile } from '@tauri-apps/api/fs';
 import { designTokens } from '../utils/theme';
 import { isAudioFile } from '../utils/audioUtils';
 
@@ -37,13 +38,25 @@ export function DragDropArea({ onFilesAdded }) {
     e.stopPropagation();
     setIsDragging(false);
 
+    console.log('[DragDropArea] Drop event triggered');
+    console.log('[DragDropArea] dataTransfer:', e.dataTransfer);
+    console.log('[DragDropArea] files:', e.dataTransfer.files);
+
     const droppedFiles = Array.from(e.dataTransfer.files);
+    console.log('[DragDropArea] Dropped files count:', droppedFiles.length);
+    console.log('[DragDropArea] Dropped files:', droppedFiles);
+
     const audioFiles = droppedFiles.filter(isAudioFile);
+    console.log('[DragDropArea] Audio files count:', audioFiles.length);
 
     if (audioFiles.length > 0) {
+      console.log('[DragDropArea] Calling onFilesAdded with:', audioFiles);
       onFilesAdded(audioFiles);
     } else if (droppedFiles.length > 0) {
+      console.log('[DragDropArea] No audio files found in drop');
       alert('Please drop audio files only (MP3, WAV, OGG, FLAC, AAC, M4A, WMA, AIFF, OPUS)');
+    } else {
+      console.log('[DragDropArea] No files in drop event');
     }
   };
 
@@ -51,11 +64,7 @@ export function DragDropArea({ onFilesAdded }) {
     e.preventDefault();
     e.stopPropagation();
     
-    console.log('[DragDropArea] Browse button clicked');
-    
     try {
-      console.log('[DragDropArea] Opening file dialog...');
-      
       const selected = await open({
         multiple: true,
         filters: [{
@@ -64,42 +73,32 @@ export function DragDropArea({ onFilesAdded }) {
         }]
       });
 
-      console.log('[DragDropArea] Dialog result:', selected);
-
-      if (!selected) {
-        console.log('[DragDropArea] User cancelled dialog');
-        return;
-      }
+      if (!selected) return;
 
       const paths = Array.isArray(selected) ? selected : [selected];
-      console.log('[DragDropArea] Selected paths:', paths);
-
-      // For Tauri file paths, we need to create File objects
-      // Since we can't directly create Files from paths in browser,
-      // we'll create minimal file objects with the path info
+      
+      // Create minimal file objects with paths - don't read full files yet
       const files = paths.map(path => {
         const fileName = path.split('/').pop().split('\\').pop();
-        console.log('[DragDropArea] Processing file:', fileName);
         
         // Create a minimal File-like object
+        // We'll load the actual data asynchronously when needed
         return {
           name: fileName,
           path: path,
-          size: 0, // We don't have size from dialog
+          size: 0,  // Will be filled when we read the file
           type: 'audio/*',
-          // Add lastModified as current time
-          lastModified: Date.now()
+          lastModified: Date.now(),
+          // Mark this as a path-based file so we know to read it later
+          _needsReading: true
         };
       });
 
-      console.log('[DragDropArea] Created file objects:', files);
-      
       if (files.length > 0) {
         onFilesAdded(files);
-        console.log('[DragDropArea] Files added successfully');
       }
     } catch (error) {
-      console.error('[DragDropArea] File picker error:', error);
+      console.error('File picker error:', error);
       alert(`Error opening file picker: ${error.message || error}`);
     }
   };

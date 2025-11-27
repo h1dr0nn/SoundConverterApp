@@ -13,6 +13,18 @@
   "tauri": {
     "allowlist": {
       "all": false,
+      "fs": {
+        "all": true,
+        "scope": [
+          "**"
+        ]
+      },
+      "dialog": {
+        "all": true
+      },
+      "path": {
+        "all": true
+      },
       "shell": {
         "all": false,
         "execute": true,
@@ -39,7 +51,8 @@
         "title": "Sound Converter",
         "width": 1200,
         "height": 800,
-        "resizable": true
+        "resizable": true,
+        "fileDropEnabled": false
       }
     ]
   }
