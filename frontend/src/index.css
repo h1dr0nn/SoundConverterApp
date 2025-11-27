@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', 'SF Pro Display', 'SF Pro Text', system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+  background: linear-gradient(180deg, #fdfdff 0%, #f2f2f7 100%);
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(0, 122, 255, 0.08), transparent 25%),
+    radial-gradient(circle at 80% 0%, rgba(0, 0, 0, 0.06), transparent 30%),
+    #f2f2f7;
+  color: #111827;
+}
+
+.backdrop-blur {
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+}
+
+::selection {
+  background: rgba(0, 122, 255, 0.2);
+  color: #0f172a;
+}

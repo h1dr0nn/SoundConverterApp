@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/1",
+  "package": {
+    "productName": "Sound Converter",
+    "version": "0.1.0"
+  },
+  "build": {
+    "beforeDevCommand": "npm run dev -- --host --port 5173 --prefix ../frontend",
+    "beforeBuildCommand": "npm run build --prefix ../frontend",
+    "devPath": "http://localhost:5173",
+    "distDir": "../frontend/dist"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.soundconverter.app"
+    },
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "title": "Sound Converter",
+        "width": 1200,
+        "height": 800,
+        "resizable": true
+      }
+    ]
+  }
+}
