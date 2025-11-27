@@ -84,7 +84,7 @@ Target style: **iOS/macOS Sonoma**
 ```
 backend/
 main.py
-converter/
+app/
 ffmpeg_runner.py
 utils.py
 ```
