@@ -166,4 +166,4 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
           projectPath: ./
-          tauriScript: npm run tauri --prefix frontend --
+          tauriScript: npm --prefix frontend run tauri
