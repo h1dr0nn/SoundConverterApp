@@ -19,12 +19,8 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            target: aarch64-apple-darwin
-            args: "--target aarch64-apple-darwin"
-
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-            args: "--target x86_64-apple-darwin"
+            target: universal-apple-darwin
+            args: "--target universal-apple-darwin"
 
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -206,11 +202,8 @@ jobs:
             exit 1
           fi
 
-          if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
-            NEW_NAME="$BUNDLE_DIR/harmonixse_macos_${VERSION}_arm64.dmg"
-          else
-            NEW_NAME="$BUNDLE_DIR/harmonixse_macos_${VERSION}_x86_64.dmg"
-          fi
+          # Universal binary gets "universal" suffix
+          NEW_NAME="$BUNDLE_DIR/harmonixse_macos_${VERSION}_universal.dmg"
 
           mv "$DMG" "$NEW_NAME"
           echo "✅ Renamed DMG: $NEW_NAME"
@@ -295,8 +288,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/**/bundle/**/harmonixse_macos_*_arm64.dmg
-            src-tauri/target/**/bundle/**/harmonixse_macos_*_x86_64.dmg
+            src-tauri/target/**/bundle/**/harmonixse_macos_*_universal.dmg
             src-tauri/target/**/bundle/**/harmonixse_linux_*_x86_64.AppImage
             src-tauri/target/**/bundle/**/harmonixse_linux_*_x86_64.deb
             src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.msi
