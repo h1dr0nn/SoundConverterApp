@@ -166,7 +166,7 @@ jobs:
           tauri build -- ${{ matrix.args }}
 
       - name: Debug macOS binary (macOS only)
-        if: matrix.platform == 'macos-latest'
+        if: startsWith(matrix.platform, 'macos')
         shell: bash
         run: |
           echo "=== Listing target/release directory ==="
@@ -180,7 +180,7 @@ jobs:
       # macOS rename
       # ---------------------------
       - name: Rename macOS outputs
-        if: matrix.platform == 'macos-latest'
+        if: startsWith(matrix.platform, 'macos')
         shell: bash
         run: |
           VERSION=${GITHUB_REF_NAME#v}
