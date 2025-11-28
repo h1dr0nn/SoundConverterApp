@@ -92,7 +92,12 @@ jobs:
         if: matrix.platform != 'windows-latest'
         shell: bash
         run: |
-          PYTHON_BIN="./src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
+          # For universal builds, use aarch64 Python (since GitHub macOS runners are ARM64)
+          if [ "${{ matrix.target }}" == "universal-apple-darwin" ]; then
+            PYTHON_BIN="./src-tauri/binaries/python-aarch64-apple-darwin/bin/python3"
+          else
+            PYTHON_BIN="./src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
+          fi
 
           if [ ! -f "$PYTHON_BIN" ]; then
             echo "❌ Bundled Python missing: $PYTHON_BIN"
@@ -131,7 +136,12 @@ jobs:
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
             FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}.exe"
           else
-            FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}"
+            # For universal builds, check if either arch exists
+            if [ "${{ matrix.target }}" == "universal-apple-darwin" ]; then
+              FFMPEG_BIN="src-tauri/binaries/ffmpeg-aarch64-apple-darwin"
+            else
+              FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}"
+            fi
           fi
 
           if [ ! -f "$FFMPEG_BIN" ]; then
