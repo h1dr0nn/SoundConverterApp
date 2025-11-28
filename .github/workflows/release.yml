@@ -42,22 +42,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Debug State
-        shell: bash
-        run: |
-          echo "=== Content of src-tauri/icons ==="
-          ls -R src-tauri/icons
-          echo "=== Content of src-tauri/tauri.conf.json ==="
-          cat src-tauri/tauri.conf.json
-
-      - name: Setup Node.jsState
-        shell: bash
-        run: |
-          echo "=== Content of src-tauri/icons ==="
-          ls -R src-tauri/icons
-          echo "=== Content of src-tauri/tauri.conf.json ==="
-          cat src-tauri/tauri.conf.json
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -162,9 +146,13 @@ jobs:
           cd frontend
           npm ci
 
+      - name: Add frontend binaries to PATH
+        shell: bash
+        run: echo "$(pwd)/frontend/node_modules/.bin" >> $GITHUB_PATH
+
       - name: Build Tauri
         run: |
-          npm --prefix frontend run tauri build -- ${{ matrix.args }}
+          tauri build -- ${{ matrix.args }}
 
       # ---------------------------
       # macOS rename
