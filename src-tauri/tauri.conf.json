@@ -14,39 +14,26 @@
   "tauri": {
     "allowlist": {
       "all": false,
-      "fs": {
-        "all": true,
-        "scope": [
-          "**"
-        ]
-      },
-      "dialog": {
-        "all": true
-      },
-      "path": {
-        "all": true
-      },
-      "shell": {
-        "all": false,
-        "execute": true,
-        "sidecar": true,
-        "open": false
-      }
+      "fs": { "all": true, "scope": ["**"] },
+      "dialog": { "all": true },
+      "path": { "all": true },
+      "shell": { "all": false, "execute": true, "sidecar": true }
     },
+
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.harmonixse.app",
+      "identifier": "com.h1dr0n.harmonixse",
+
       "resources": [
-        "../backend/**"
-      ],
-      "externalBin": [
-        "binaries/ffmpeg"
+        "binaries/**/*"
       ]
     },
+
     "security": {
       "csp": null
     },
+
     "windows": [
       {
         "title": "Harmonix SE",
