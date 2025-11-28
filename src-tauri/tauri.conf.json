@@ -35,6 +35,10 @@
     "bundle": {
       "active": true,
       "identifier": "com.h1dr0n.harmonixse",
+      "icon": [
+        "icons/icon.ico",
+        "icons/icon.png"
+      ],
       "resources": [
         "src-tauri/binaries/**/*"
       ],
