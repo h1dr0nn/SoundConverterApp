@@ -142,6 +142,10 @@ jobs:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
+      - name: Debug - List Target Directory
+        run: ls -R src-tauri/target/ || echo "Target dir not found"
+        shell: bash
+
       - name: Package artifacts
         id: package
         run: |
@@ -262,11 +266,12 @@ jobs:
       - name: Verify FFmpeg
         run: |
           $FFMPEG_BIN = "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
+          Write-Host "Checking for FFmpeg at: $FFMPEG_BIN"
           if (Test-Path $FFMPEG_BIN) {
-            Write-Host "✓ FFmpeg found at $FFMPEG_BIN"
+            Write-Host "FFmpeg found."
             Get-Item $FFMPEG_BIN | Select-Object Name,Length
           } else {
-            Write-Host "Error: FFmpeg not found at $FFMPEG_BIN"
+            Write-Host "Error: FFmpeg not found."
             exit 1
           }
         shell: powershell
@@ -439,6 +444,10 @@ jobs:
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Debug - List Bundle Directory
+        run: ls -R src-tauri/target/release/bundle || echo "Bundle dir not found"
+        shell: bash
 
       - name: Find and rename artifacts
         id: artifacts
