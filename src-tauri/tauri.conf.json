@@ -34,14 +34,14 @@
     },
     "bundle": {
       "active": true,
+      "identifier": "com.h1dr0n.harmonixse",
       "targets": [
         "msi",
         "nsis",
         "zip"
       ],
-      "identifier": "com.h1dr0n.harmonixse",
       "resources": [
-        "binaries/**/*"
+        "src-tauri/binaries/**/*"
       ],
       "windows": {
         "nsis": {
@@ -49,6 +49,9 @@
           "installerIcon": "icons/icon.ico",
           "uninstallerIcon": "icons/icon.ico",
           "displayLanguageSelector": false
+        },
+        "zip": {
+          "compression": "fast"
         },
         "wix": {
           "language": "en-US"

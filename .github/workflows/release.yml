@@ -78,7 +78,6 @@ jobs:
         if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
-          echo "Running download-binaries.sh via BASH on Windows..."
           chmod +x scripts/download-binaries.sh
           ./scripts/download-binaries.sh
         env:
@@ -111,23 +110,21 @@ jobs:
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          Write-Host "Searching for python.exe recursively under src-tauri\binaries..."
+          Write-Host "Searching python.exe..."
           $found = Get-ChildItem -Recurse -Filter python.exe "src-tauri\binaries" | Select-Object -First 1
 
           if ($found -eq $null) {
             Write-Host "❌ No python.exe found!"
-            Get-ChildItem -Recurse "src-tauri\binaries" | Select-Object FullName
             exit 1
           }
 
-          Write-Host "Python found at: $($found.FullName)"
+          Write-Host "Found Python: $($found.FullName)"
           "PYTHON_BIN=$($found.FullName)" >> $env:GITHUB_ENV
 
       - name: Install backend dependencies (Windows)
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          Write-Host "Installing Python deps via $env:PYTHON_BIN"
           & $env:PYTHON_BIN -m pip install --upgrade pip
           & $env:PYTHON_BIN -m pip install -r requirements.txt
 
@@ -141,8 +138,7 @@ jobs:
           fi
 
           if [ ! -f "$FFMPEG_BIN" ]; then
-            echo "❌ Missing FFmpeg: $FFMPEG_BIN"
-            ls -R src-tauri/binaries || true
+            echo "❌ FFmpeg missing: $FFMPEG_BIN"
             exit 1
           fi
 
@@ -153,76 +149,93 @@ jobs:
 
       - name: Build Tauri
         run: |
-          echo "🚀 Building Tauri: ${{ matrix.target }}"
           npm --prefix frontend run tauri build -- ${{ matrix.args }}
 
+      # ---------------------------
+      # macOS rename
+      # ---------------------------
       - name: Rename macOS outputs
         if: matrix.platform == 'macos-latest'
         shell: bash
         run: |
-          BUNDLE_DIR=$(find src-tauri/target -type d -name bundle | head -n 1)
+          VERSION=${GITHUB_REF_NAME#v}
+          BUNDLE_DIR=$(find src-tauri/target -type d -path "*/bundle/dmg" | head -n 1)
           DMG=$(find "$BUNDLE_DIR" -type f -name "*.dmg" | head -n 1)
 
-          if [ -z "$DMG" ]; then
-            echo "No .dmg found"
-            exit 0
-          fi
-
           if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
-            mv "$DMG" "$BUNDLE_DIR/harmonixse_macos_arm64.dmg"
+            mv "$DMG" "$BUNDLE_DIR/harmonixse_macos_${VERSION}_arm64.dmg"
           else
-            mv "$DMG" "$BUNDLE_DIR/harmonixse_macos_x86_64.dmg"
+            mv "$DMG" "$BUNDLE_DIR/harmonixse_macos_${VERSION}_x86_64.dmg"
           fi
 
+      # ---------------------------
+      # Linux rename
+      # ---------------------------
       - name: Rename Linux outputs
         if: matrix.platform == 'ubuntu-22.04'
         shell: bash
         run: |
-          BUNDLE_DIR=$(find src-tauri/target -type d -name bundle | head -n 1)
+          VERSION=${GITHUB_REF_NAME#v}
+          APPDIR=$(find src-tauri/target -type d -path "*/bundle/appimage" | head -n 1)
+          DEBDIR=$(find src-tauri/target -type d -path "*/bundle/deb" | head -n 1)
 
-          APP=$(find "$BUNDLE_DIR" -type f -name "*.AppImage" | head -n 1)
-          DEB=$(find "$BUNDLE_DIR" -type f -name "*.deb" | head -n 1)
+          APP=$(find "$APPDIR" -type f -name "*.AppImage" | head -n 1)
+          DEB=$(find "$DEBDIR" -type f -name "*.deb" | head -n 1)
 
-          [ -n "$APP" ] && mv "$APP" "$BUNDLE_DIR/harmonixse_linux_x86_64.AppImage"
-          [ -n "$DEB" ] && mv "$DEB" "$BUNDLE_DIR/harmonixse_linux_x86_64.deb"
+          [ -n "$APP" ] && mv "$APP" "$APPDIR/harmonixse_linux_${VERSION}_x86_64.AppImage"
+          [ -n "$DEB" ] && mv "$DEB" "$DEBDIR/harmonixse_linux_${VERSION}_x86_64.deb"
 
+      # ---------------------------
+      # Windows rename
+      # ---------------------------
       - name: Rename Windows outputs
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          $bundleDir = Get-ChildItem -Recurse -Directory -Filter "bundle" "src-tauri\target" | Select-Object -First 1
+          $VERSION = "${{ github.ref_name }}".TrimStart("v")
 
-          $msi = Get-ChildItem -Path "$bundleDir\msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $bundle = Get-ChildItem -Recurse -Directory -Path "src-tauri\target" | Where-Object { $_.Name -eq "bundle" } | Select-Object -First 1
+
+          # MSI
+          $msi = Get-ChildItem "$($bundle.FullName)\msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($msi) {
-            Move-Item $msi.FullName "$bundleDir\harmonixse_windows_x86_64.msi" -Force
+            Rename-Item $msi.FullName "$($bundle.FullName)\harmonixse_windows_${VERSION}_x86_64.msi" -Force
           }
 
-          $installer = Get-ChildItem -Path "$bundleDir\nsis" -Filter "*_setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          # Installer EXE
+          $installer = Get-ChildItem "$($bundle.FullName)\nsis" -Filter "*_setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($installer) {
-            Move-Item $installer.FullName "$bundleDir\harmonixse_windows_x86_64.exe" -Force
+            Rename-Item $installer.FullName "$($bundle.FullName)\harmonixse_windows_${VERSION}_x86_64.exe" -Force
           }
 
-          $portable = Get-ChildItem -Path "$bundleDir\nsis" -Filter "*_portable.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          # Portable EXE
+          $portable = Get-ChildItem "$($bundle.FullName)\nsis" -Filter "*_portable.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($portable) {
-            Move-Item $portable.FullName "$bundleDir\harmonixse_windows_x86_64_portable.exe" -Force
+            Rename-Item $portable.FullName "$($bundle.FullName)\harmonixse_windows_${VERSION}_x86_64_portable.exe" -Force
           }
 
-          $zip = Get-ChildItem -Path "$bundleDir\zip" -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+          # ZIP portable
+          $zip = Get-ChildItem "$($bundle.FullName)\zip" -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($zip) {
-            Move-Item $zip.FullName "$bundleDir\harmonixse_windows_x86_64_portable.zip" -Force
+            Rename-Item $zip.FullName "$($bundle.FullName)\harmonixse_windows_${VERSION}_x86_64_portable.zip" -Force
           }
 
+      # ---------------------------
+      # Upload
+      # ---------------------------
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/**/bundle/**/harmonixse_macos_arm64.dmg
-            src-tauri/target/**/bundle/**/harmonixse_macos_x86_64.dmg
-            src-tauri/target/**/bundle/**/harmonixse_linux_x86_64.AppImage
-            src-tauri/target/**/bundle/**/harmonixse_linux_x86_64.deb
-            src-tauri/target/**/bundle/**/harmonixse_windows_x86_64.msi
-            src-tauri/target/**/bundle/**/harmonixse_windows_x86_64.exe
-            src-tauri/target/**/bundle/**/harmonixse_windows_x86_64_portable.exe
-            src-tauri/target/**/bundle/**/harmonixse_windows_x86_64_portable.zip
+            src-tauri/target/**/bundle/**/harmonixse_macos_*_arm64.dmg
+            src-tauri/target/**/bundle/**/harmonixse_macos_*_x86_64.dmg
+
+            src-tauri/target/**/bundle/**/harmonixse_linux_*_x86_64.AppImage
+            src-tauri/target/**/bundle/**/harmonixse_linux_*_x86_64.deb
+
+            src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.msi
+            src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.exe
+            src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64_portable.exe
+            src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64_portable.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
