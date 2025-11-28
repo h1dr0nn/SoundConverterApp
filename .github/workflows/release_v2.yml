@@ -258,7 +258,7 @@ jobs:
           Write-Host "Bundle dir: $($bundle.FullName)"
 
           # MSI
-          $msi = Get-ChildItem $bundle.FullName -Recurse -Filter "*.msi" | Select-Object -First 1
+          $msi = Get-ChildItem $bundle.FullName -Recurse -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($msi) {
             $newName = Join-Path $msi.DirectoryName "harmonixse_windows_${VERSION}_x86_64.msi"
             Rename-Item $msi.FullName $newName -Force
@@ -267,16 +267,14 @@ jobs:
             Write-Host "⚠️ No MSI found"
           }
 
-          # Installer EXE (NSIS)
-          $installer = Get-ChildItem $bundle.FullName -Recurse -Filter "*_setup.exe" | Select-Object -First 1
+          # Installer EXE (NSIS) - Tauri v2 naming: ProductName_version_arch-setup.exe
+          $installer = Get-ChildItem $bundle.FullName -Recurse -Filter "*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($installer) {
             $newName = Join-Path $installer.DirectoryName "harmonixse_windows_${VERSION}_x86_64.exe"
             Rename-Item $installer.FullName $newName -Force
             Write-Host "✅ Renamed installer: $newName"
           } else {
-             # Try finding just .exe that is NOT the binary itself (hard to distinguish without pattern)
-             # But Tauri v2 names it "Product Name_version_arch-setup.exe" or similar.
-             Write-Host "⚠️ No NSIS installer found"
+            Write-Host "⚠️ No NSIS installer found"
           }
 
       # ---------------------------
@@ -286,11 +284,11 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/**/bundle/**/*.dmg
-            src-tauri/target/**/bundle/**/*.AppImage
-            src-tauri/target/**/bundle/**/*.deb
-            src-tauri/target/**/bundle/**/*.msi
-            src-tauri/target/**/bundle/**/*.exe
-            src-tauri/target/**/bundle/**/*.zip
+            src-tauri/target/**/bundle/**/harmonixse_macos_*_arm64.dmg
+            src-tauri/target/**/bundle/**/harmonixse_macos_*_x86_64.dmg
+            src-tauri/target/**/bundle/**/harmonixse_linux_*_x86_64.AppImage
+            src-tauri/target/**/bundle/**/harmonixse_linux_*_x86_64.deb
+            src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.msi
+            src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
