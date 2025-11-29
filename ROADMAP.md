@@ -98,20 +98,95 @@ Tauri (App Shell)
 
 **Status: 🚧 In Progress**
 
-#### **6.1 — Native Integration (macOS Focus)**
+#### **6.1 — Native Integration (macOS Focus)**  
+**Status: ✅ Complete**
 
-- [ ] **Dock Drag & Drop**: Kéo file vào icon Dock để mở app và thêm file.
-- [ ] **Native Menu & Shortcuts**: Cải thiện menu bar và phím tắt chuẩn macOS (Cmd+O, Cmd+,).
+- [x] Dock Drag & Drop.
+- [x] Native Menu & Shortcuts (Cmd+O, Cmd+, …).
 
-#### **6.2 — Visual & Intelligence**
+#### **6.2 — Visual & Intelligence Enhancements**  
+**Status: 🚧 In Progress**
 
-- [ ] **Waveform Preview**: Hiển thị visual sóng âm đơn giản cho file.
-- [ ] **Smart Analysis**: Auto-detect format và gợi ý preset phù hợp.
+- [x] Waveform Preview.
+- [x] Smart Format Analysis.
+- [ ] Better waveform caching.
+- [ ] Enhanced progress animation.
+- [ ] Audio metadata display (bitrate, channels, duration).
 
-#### **6.3 — System & Distribution**
+#### **6.3 — System & Distribution Improvements**  
+**Status: 🚧 In Progress**
 
-- [ ] **Multi-language**: Hỗ trợ i18n (EN/VI).
-- [ ] **Auto-updater**: Cơ chế tự cập nhật app.
+- [ ] Multi-language (EN/VI).
+- [ ] Auto-updater.
+- [ ] Settings persistence.
+- [ ] Crash logger (local only).
+
+---
+
+### 🧬 **Phase 7 — Performance & Stability Optimization**
+
+**Status: Pending**
+
+- [ ] Speed optimization Python + FFmpeg (parallel optional).
+- [ ] Reduce startup time.
+- [ ] Reduce memory footprint.
+- [ ] Smoother progress streaming.
+- [ ] Cache presets/analysis for faster repeat operations.
+
+---
+
+### 🔐 **Phase 8 — Security, Sandboxing & Signing**
+
+**Status: Pending**
+
+- [ ] Sandbox file IO.
+- [ ] Validate all input paths/extensions.
+- [ ] Fully escape FFmpeg commands.
+- [ ] Harden Tauri security (CSP, isolation).
+- [ ] Code signing:
+  - [ ] macOS notarization.
+  - [ ] Windows signing.
+  - [ ] Linux signing (optional).
+
+---
+
+### 🌐 **Phase 9 — UX Polish, Accessibility & Internationalization**
+
+**Status: Pending**
+
+- [ ] Full i18n expansion.
+- [ ] macOS VoiceOver accessibility.
+- [ ] Keyboard navigation improvements.
+- [ ] Tooltip + contextual help.
+- [ ] Responsive layout on window resize.
+- [ ] Micro-interaction & animation polishing.
+
+---
+
+### 🚀 **Phase 10 — Pro Features & Ecosystem Expansion**
+
+**Status: Pending**
+
+#### **10.1 — Advanced Audio Tools**
+- [ ] Merge audio files.
+- [ ] Trim/cut via waveform.
+- [ ] Volume normalization.
+- [ ] Extract audio from video.
+- [ ] Advanced presets (VBR, channel modes…).
+
+#### **10.2 — Plugin Architecture**
+- [ ] Pluggable audio modules.
+- [ ] Public extension API.
+- [ ] Optional internal plugin marketplace.
+
+#### **10.3 — Cloud Sync**
+- [ ] Sync presets/history/settings.
+- [ ] Export/import profiles.
+
+#### **10.4 — Store Distribution**
+- [ ] macOS App Store distribution.
+- [ ] Microsoft Store distribution.
+- [ ] Flathub (Linux).
 
 ---
 
