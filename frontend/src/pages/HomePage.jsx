@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FiSettings } from 'react-icons/fi';
 import { listen } from '@tauri-apps/api/event';
 import { dirname } from '@tauri-apps/api/path';
@@ -89,8 +89,14 @@ export function HomePage({
     setSelectedFormat(settings.defaultFormat || 'AAC');
   }, [settings.defaultFormat]);
 
+  // Keep ref of files to avoid re-creating handleFilesAdded on every file change
+  const filesRef = useRef(files);
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
   // Handle files added from drag & drop or file picker
-  const handleFilesAdded = async (newFiles) => {
+  const handleFilesAdded = useCallback(async (newFiles) => {
     try {
       // Create minimal file objects immediately to show in UI
       const immediateFiles = newFiles.map(file => {
@@ -114,8 +120,8 @@ export function HomePage({
         };
       });
 
-      // Filter out duplicates by comparing paths
-      const existingPaths = new Set(files.map(f => f.path));
+      // Filter out duplicates by comparing paths using ref
+      const existingPaths = new Set(filesRef.current.map(f => f.path));
       const newUniqueFiles = immediateFiles.filter(file => !existingPaths.has(file.path));
       
       if (newUniqueFiles.length === 0) {
@@ -256,7 +262,7 @@ export function HomePage({
       console.error('Error adding files:', error);
       setToast({ type: 'error', message: 'Failed to add files' });
     }
-  };
+  }, [outputFolder, settings, setOutputFolder]);
 
   // Listen for global events (Dock drop, Menu commands)
   useEffect(() => {
@@ -307,7 +313,7 @@ export function HomePage({
       if (unlistenFileOpened) unlistenFileOpened();
       if (unlistenRequestOpen) unlistenRequestOpen();
     };
-  }, [files]); // Dependencies might need review, but handleFilesAdded uses state setters so it's stable? No, handleFilesAdded depends on 'files' state for dedup.
+  }, [handleFilesAdded]); // Dependencies might need review, but handleFilesAdded uses state setters so it's stable? No, handleFilesAdded depends on 'files' state for dedup.
   // Actually handleFilesAdded is a const function inside component, so it changes every render if it uses state.
   // But 'files' is in dependency of useEffect, so it re-subscribes. That's fine.
 
