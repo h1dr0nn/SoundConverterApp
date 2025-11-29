@@ -162,8 +162,10 @@ jobs:
 
       - name: Build Tauri
         shell: bash
+        env:
+          CI: true
         run: |
-          tauri build -- ${{ matrix.args }}
+          tauri build --verbose -- ${{ matrix.args }}
 
       - name: Debug macOS binary (macOS only)
         if: startsWith(matrix.platform, 'macos')
