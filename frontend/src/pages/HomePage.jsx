@@ -3,6 +3,7 @@ import { FiSettings } from 'react-icons/fi';
 import { listen } from '@tauri-apps/api/event';
 import { dirname } from '@tauri-apps/api/path';
 import { readFile } from '@tauri-apps/plugin-fs';
+import { open } from '@tauri-apps/plugin-dialog';
 import { DragDropArea } from '../components/DragDropArea';
 import { FileListPanel } from '../components/FileListPanel';
 import { FormatSelector } from '../components/FormatSelector';
@@ -256,6 +257,59 @@ export function HomePage({
       setToast({ type: 'error', message: 'Failed to add files' });
     }
   };
+
+  // Listen for global events (Dock drop, Menu commands)
+  useEffect(() => {
+    let unlistenFileOpened;
+    let unlistenRequestOpen;
+
+    const setupListeners = async () => {
+      // Handle Dock drag & drop
+      unlistenFileOpened = await listen('file-opened', (event) => {
+        const paths = event.payload;
+        if (Array.isArray(paths) && paths.length > 0) {
+          const fileObjs = paths.map(path => {
+            const name = path.split(/[/\\]/).pop();
+            return { name, path, size: 0, _needsReading: true };
+          });
+          handleFilesAdded(fileObjs);
+        }
+      });
+
+      // Handle Menu "Open File..."
+      unlistenRequestOpen = await listen('request-open-file', async () => {
+        try {
+          const selected = await open({
+            multiple: true,
+            filters: [{
+              name: 'Audio',
+              extensions: ['mp3', 'wav', 'flac', 'm4a', 'ogg', 'aac', 'aiff']
+            }]
+          });
+          
+          if (selected) {
+            const paths = Array.isArray(selected) ? selected : [selected];
+            const fileObjs = paths.map(path => {
+              const name = path.split(/[/\\]/).pop();
+              return { name, path, size: 0, _needsReading: true };
+            });
+            handleFilesAdded(fileObjs);
+          }
+        } catch (err) {
+          console.error('Failed to open dialog:', err);
+        }
+      });
+    };
+
+    setupListeners();
+
+    return () => {
+      if (unlistenFileOpened) unlistenFileOpened();
+      if (unlistenRequestOpen) unlistenRequestOpen();
+    };
+  }, [files]); // Dependencies might need review, but handleFilesAdded uses state setters so it's stable? No, handleFilesAdded depends on 'files' state for dedup.
+  // Actually handleFilesAdded is a const function inside component, so it changes every render if it uses state.
+  // But 'files' is in dependency of useEffect, so it re-subscribes. That's fine.
 
   // Handle clear all
   const handleClearAll = () => {

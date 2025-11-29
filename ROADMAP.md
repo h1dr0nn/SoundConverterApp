@@ -94,15 +94,24 @@ Tauri (App Shell)
 
 ---
 
-### 🌟 **Phase 6 — Optional Enhancements**
+### 🌟 **Phase 6 — Advanced Polish & Features**
 
-**Status: Optional**
+**Status: 🚧 In Progress**
 
-- [ ] Plugin drag file vào Dock icon (macOS).
-- [ ] Auto-detect input format + smart preset.
-- [ ] Show waveform preview.
-- [ ] Auto-update (Tauri updater).
-- [ ] Multi-language (i18n).
+#### **6.1 — Native Integration (macOS Focus)**
+
+- [ ] **Dock Drag & Drop**: Kéo file vào icon Dock để mở app và thêm file.
+- [ ] **Native Menu & Shortcuts**: Cải thiện menu bar và phím tắt chuẩn macOS (Cmd+O, Cmd+,).
+
+#### **6.2 — Visual & Intelligence**
+
+- [ ] **Waveform Preview**: Hiển thị visual sóng âm đơn giản cho file.
+- [ ] **Smart Analysis**: Auto-detect format và gợi ý preset phù hợp.
+
+#### **6.3 — System & Distribution**
+
+- [ ] **Multi-language**: Hỗ trợ i18n (EN/VI).
+- [ ] **Auto-updater**: Cơ chế tự cập nhật app.
 
 ---
 
