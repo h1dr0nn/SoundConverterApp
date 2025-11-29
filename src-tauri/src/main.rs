@@ -94,13 +94,9 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let tauri::RunEvent::Opened { urls } = event {
-                let file_paths: Vec<String> =
-                    urls.into_iter().map(|u| u.path().to_string()).collect();
-                if !file_paths.is_empty() {
-                    let _ = app.emit("file-opened", file_paths);
-                }
-            }
+        .run(|_app, _event| {
+            // RunEvent handling removed as RunEvent::Opened doesn't exist in Tauri v2
+            // File opening/deep linking should be implemented using tauri-plugin-deep-link
+            // or command-line argument handling if needed
         });
 }
