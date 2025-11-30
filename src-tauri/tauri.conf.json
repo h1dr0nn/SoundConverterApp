@@ -55,9 +55,16 @@
   },
   "productName": "HarmonixSE",
   "mainBinaryName": "harmonixse",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "identifier": "com.h1dr0n.harmonixse",
-  "plugins": {},
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/h1dr0nn/SoundConverterApp/releases/latest/download/latest.json"
+      ],
+      "pubkey": "YOUR_PUBLIC_KEY_HERE"
+    }
+  },
   "app": {
     "withGlobalTauri": false,
     "windows": [

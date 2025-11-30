@@ -646,7 +646,7 @@ export function HomePage({
       className={`min-h-screen bg-gradient-to-br ${themeClasses.pageBackground} text-slate-900 transition duration-smooth dark:text-slate-100`}
       style={{ fontFamily: designTokens.font }}
     >
-      <div className="mx-auto flex min-h-screen w-full flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-full flex-col gap-4 overflow-x-hidden p-4 lg:gap-6 lg:p-6">
         {/* Header */}
         <header className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-4 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -667,7 +667,7 @@ export function HomePage({
 
         <div className="flex flex-1 gap-6">
           {/* Sidebar */}
-          <aside className={`glass-surface scrollbar-hide hidden w-[280px] flex-shrink-0 flex-col rounded-card border ${themeClasses.card} p-5 shadow-soft transition duration-smooth lg:flex`}>
+          <aside className={`glass-surface scrollbar-hide hidden min-w-[280px] max-w-[380px] flex-col rounded-card border ${themeClasses.card} p-5 shadow-soft transition duration-smooth lg:flex`}>
             <div className="relative flex flex-1 flex-col space-y-6">
               {/* Mode Selector in Sidebar */}
               <ModeSelector selected={mode} onChange={setMode} />
@@ -703,11 +703,11 @@ export function HomePage({
           {/* Main Content */}
           <main className="scrollbar-hide flex flex-1 flex-col gap-4 lg:gap-6">
             {/* Drag & Drop + Controls */}
-            <section className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:flex-row`}>
-              <div className="lg:min-w-[500px] lg:max-w-[600px] lg:flex-1">
+            <section className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth min-[1320px]:flex-row`}>
+              <div className="min-[1320px]:min-w-[440px] min-[1320px]:max-w-[600px] min-[1320px]:flex-1" style={{flex: '1 1 520px'}}>
                 <DragDropArea onFilesAdded={handleFilesAdded} />
               </div>
-              <div className={`flex h-full flex-1 flex-col justify-between gap-6 rounded-card border ${themeClasses.surface} p-4`}>
+              <div className={`flex h-full min-w-0 flex-1 flex-col justify-between gap-6 rounded-card border ${themeClasses.surface} p-4 min-[1320px]:min-w-[440px]`}>
                 {mode === 'format' && (
                   <FormatSelector formats={formatOptions} selected={selectedFormat} onSelect={setSelectedFormat} />
                 )}
@@ -748,8 +748,8 @@ export function HomePage({
             </section>
 
             {/* File List + Progress */}
-            <section className={`flex flex-1 flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:flex-row`}>
-              <div className="flex h-full flex-col overflow-hidden lg:min-w-[500px] lg:max-w-[600px] lg:flex-1">
+            <section className={`flex flex-1 flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth min-[1320px]:flex-row`}>
+              <div className="flex h-full flex-col overflow-hidden min-[1320px]:min-w-[440px] min-[1320px]:max-w-[600px] min-[1320px]:flex-1" style={{flex: '1 1 520px'}}>
                 <FileListPanel 
                   files={files} 
                   onClearAll={handleClearAll} 
@@ -757,7 +757,7 @@ export function HomePage({
                   onReload={handleReload}
                 />
               </div>
-              <div className="flex flex-1 min-w-0 flex-col gap-4">
+              <div className="flex min-w-0 flex-1 flex-col gap-4 min-[1320px]:min-w-[440px]">
                 <ProgressIndicator 
                   progress={progress} 
                   status={processingStatus}

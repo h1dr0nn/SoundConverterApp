@@ -117,12 +117,12 @@ Tauri (App Shell)
 
 #### **6.3 — System & Distribution Improvements**
 
-**Status: 🚧 In Progress**
+**Status: ✅ Complete**
 
 - [x] Multi-language (EN/VI/JP/KR/CN/ES).
-- [ ] Auto-updater.
-- [ ] Settings persistence.
-- [ ] Crash logger (local only).
+- [x] Auto-updater.
+- [x] Settings persistence.
+- [x] Crash logger (local only).
 
 ---
 

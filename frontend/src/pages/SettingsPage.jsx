@@ -394,14 +394,60 @@ function AppearanceTab({ theme, toggleTheme }) {
   );
 }
 
+import { check } from '@tauri-apps/plugin-updater';
+import { ask, message } from '@tauri-apps/plugin-dialog';
+import { relaunch } from '@tauri-apps/plugin-process';
+
 function AboutTab() {
   const { t } = useTranslation();
+  const [checking, setChecking] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    setChecking(true);
+    try {
+      const update = await check();
+      if (update?.available) {
+        const yes = await ask(`Update to ${update.version} is available!\n\nRelease notes: ${update.body}`, {
+          title: 'Update Available',
+          kind: 'info',
+          okLabel: 'Update',
+          cancelLabel: 'Cancel'
+        });
+        if (yes) {
+          await update.downloadAndInstall();
+          await relaunch();
+        }
+      } else {
+        await message('You are on the latest version.', { title: 'No Updates', kind: 'info' });
+      }
+    } catch (error) {
+      console.error(error);
+      let errorMessage = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
+      
+      if (errorMessage.includes('Could not fetch a valid release JSON')) {
+        errorMessage = 'Update server not reachable. (This is expected if no release has been published yet)';
+      }
+      
+      await message(errorMessage, { title: 'Update Check Failed', kind: 'warning' });
+    } finally {
+      setChecking(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Harmonix SE</h3>
-        <p className="text-sm text-slate-600 dark:text-slate-300">Version 1.0.1</p>
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Harmonix SE</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-300">Version 1.0.2</p>
+        </div>
+        <button
+          onClick={handleCheckUpdate}
+          disabled={checking}
+          className="flex h-10 w-40 items-center justify-center whitespace-nowrap rounded-lg bg-slate-100 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/20"
+        >
+          {checking ? 'Checking...' : 'Check for Updates'}
+        </button>
       </div>
 
       <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
