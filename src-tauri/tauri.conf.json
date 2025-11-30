@@ -21,7 +21,8 @@
       "icons/icon.png"
     ],
     "resources": [
-      "binaries/**/*"
+      "binaries/**/*",
+      "../backend/**/*"
     ],
     "macOS": {
       "entitlements": null,
@@ -54,9 +55,16 @@
   },
   "productName": "HarmonixSE",
   "mainBinaryName": "harmonixse",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "identifier": "com.h1dr0n.harmonixse",
-  "plugins": {},
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/h1dr0nn/SoundConverterApp/releases/latest/download/latest.json"
+      ],
+      "pubkey": "YOUR_PUBLIC_KEY_HERE"
+    }
+  },
   "app": {
     "withGlobalTauri": false,
     "windows": [
@@ -64,6 +72,8 @@
         "title": "Harmonix SE",
         "width": 1200,
         "height": 800,
+        "minWidth": 900,
+        "minHeight": 650,
         "resizable": true,
         "dragDropEnabled": false,
         "useHttpsScheme": true

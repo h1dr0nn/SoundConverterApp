@@ -1,8 +1,10 @@
 import React from 'react';
 import { cn } from '../utils/cn';
 import { formatDuration } from '../utils/audioUtils';
+import { useTranslation } from '../utils/i18n';
 
 export function ModifyControls({ parameters, onParametersChange, duration = 0 }) {
+  const { t } = useTranslation();
   // parameters: { speed, pitch, cutStart, cutEnd, isCutEnabled }
 
   const handleChange = (key, value) => {
@@ -19,7 +21,7 @@ export function ModifyControls({ parameters, onParametersChange, duration = 0 })
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-            Playback Speed
+            {t('playbackSpeed')}
           </label>
           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
             {parameters.speed.toFixed(2)}x
@@ -45,10 +47,10 @@ export function ModifyControls({ parameters, onParametersChange, duration = 0 })
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-            Pitch Shift
+            {t('pitchShift')}
           </label>
           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-            {parameters.pitch > 0 ? '+' : ''}{parameters.pitch} semitones
+            {parameters.pitch > 0 ? '+' : ''}{parameters.pitch} {t('semitones')}
           </span>
         </div>
         <input
@@ -71,7 +73,7 @@ export function ModifyControls({ parameters, onParametersChange, duration = 0 })
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-            Cut Audio
+            {t('cutAudio')}
           </label>
           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
             {formatDuration(endTime - startTime)}

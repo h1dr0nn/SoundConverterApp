@@ -1,16 +1,19 @@
 import React from 'react';
 import { cn } from '../utils/cn';
+import { useTranslation } from '../utils/i18n';
 
 export function FormatSelector({ formats = [], selected, onSelect }) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Output</p>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Choose format</h3>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{t('outputLabel')}</p>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t('chooseFormat')}</h3>
         </div>
         <span className="rounded-full bg-white/50 px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-inner dark:bg-white/10 dark:text-slate-200">
-          {selected ? `${selected} selected` : 'Preview'}
+          {selected ? `${selected} ${t('selected')}` : t('preview')}
         </span>
       </div>
 

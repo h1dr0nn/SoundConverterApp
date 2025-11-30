@@ -132,6 +132,7 @@ def handle_conversion(data: dict, ffmpeg_path: Path | None) -> dict | None:
             "status": status,
             "message": result.message,
             "outputs": [str(p) for p in result.outputs],
+            "operation_type": "convert"
         }
     )
 
@@ -139,6 +140,7 @@ def handle_conversion(data: dict, ffmpeg_path: Path | None) -> dict | None:
         "status": status,
         "message": result.message,
         "outputs": [str(p) for p in result.outputs],
+        "operation_type": "convert"
     }
 
 
@@ -168,10 +170,22 @@ def handle_mastering(data: dict) -> dict:
 
     result = MasteringEngine.process(request)
     
+    status = "success" if result.success else "error"
+    emit_progress(
+        {
+            "event": "complete",
+            "status": status,
+            "message": result.message,
+            "outputs": [str(p) for p in result.outputs],
+            "operation_type": "master"
+        }
+    )
+    
     return {
-        "status": "success" if result.success else "error",
+        "status": status,
         "message": result.message,
-        "outputs": [str(p) for p in result.outputs]
+        "outputs": [str(p) for p in result.outputs],
+        "operation_type": "master"
     }
 
 
@@ -195,10 +209,22 @@ def handle_trimming(data: dict) -> dict:
 
     result = SilenceTrimmer.process(request)
 
+    status = "success" if result.success else "error"
+    emit_progress(
+        {
+            "event": "complete",
+            "status": status,
+            "message": result.message,
+            "outputs": [str(p) for p in result.outputs],
+            "operation_type": "trim"
+        }
+    )
+
     return {
-        "status": "success" if result.success else "error",
+        "status": status,
         "message": result.message,
-        "outputs": [str(p) for p in result.outputs]
+        "outputs": [str(p) for p in result.outputs],
+        "operation_type": "trim"
     }
 
 
@@ -222,16 +248,36 @@ def handle_modification(data: dict) -> dict:
 
     try:
         outputs = process_modification(request)
+        emit_progress(
+            {
+                "event": "complete",
+                "status": "success",
+                "message": f"Modified {len(outputs)} files",
+                "outputs": [str(p) for p in outputs],
+                "operation_type": "modify"
+            }
+        )
         return {
             "status": "success",
             "message": f"Modified {len(outputs)} files",
-            "outputs": [str(p) for p in outputs]
+            "outputs": [str(p) for p in outputs],
+            "operation_type": "modify"
         }
     except Exception as e:
+        emit_progress(
+            {
+                "event": "complete",
+                "status": "error",
+                "message": str(e),
+                "outputs": [],
+                "operation_type": "modify"
+            }
+        )
         return {
             "status": "error",
             "message": str(e),
-            "outputs": []
+            "outputs": [],
+            "operation_type": "modify"
         }
 
 
@@ -373,7 +419,8 @@ def handle_analysis(data: dict) -> dict:
         "status": "success",
         "message": "Analysis complete",
         "outputs": [],
-        "data": results
+        "data": results,
+        "operation_type": "analyze"
     }
 
 

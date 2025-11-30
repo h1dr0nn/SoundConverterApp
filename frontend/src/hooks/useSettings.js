@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Store } from '@tauri-apps/plugin-store';
 
-const STORAGE_KEY = 'soundconverter_settings';
+const STORE_FILENAME = 'settings.json';
+const store = new Store(STORE_FILENAME);
 
 const DEFAULT_SETTINGS = {
   // Configuration
@@ -18,29 +20,48 @@ const DEFAULT_SETTINGS = {
   // Appearance
   accentColor: '#007AFF',
   fontSize: 'medium',
+  language: 'en',
 };
 
 export function useSettings() {
-  const [settings, setSettings] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-      }
-    } catch (error) {
-      console.error('Failed to load settings:', error);
-    }
-    return DEFAULT_SETTINGS;
-  });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Save to localStorage whenever settings change
+  // Load settings on mount
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  }, [settings]);
+    const loadSettings = async () => {
+      try {
+        const savedSettings = await store.get('settings');
+        if (savedSettings) {
+          setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+        } else {
+          // First run: save defaults
+          await store.set('settings', DEFAULT_SETTINGS);
+          await store.save();
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  // Save settings when they change
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const saveSettings = async () => {
+      try {
+        await store.set('settings', settings);
+        await store.save();
+      } catch (error) {
+        console.error('Failed to save settings:', error);
+      }
+    };
+    saveSettings();
+  }, [settings, isLoaded]);
 
   const updateSetting = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -50,8 +71,14 @@ export function useSettings() {
     setSettings(prev => ({ ...prev, ...updates }));
   };
 
-  const resetSettings = () => {
+  const resetSettings = async () => {
     setSettings(DEFAULT_SETTINGS);
+    try {
+      await store.set('settings', DEFAULT_SETTINGS);
+      await store.save();
+    } catch (error) {
+      console.error('Failed to reset settings:', error);
+    }
   };
 
   return {
@@ -59,5 +86,6 @@ export function useSettings() {
     updateSetting,
     updateSettings,
     resetSettings,
+    isLoaded,
   };
 }

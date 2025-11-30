@@ -1,36 +1,38 @@
 import React from 'react';
 import { FiRefreshCw, FiZap, FiScissors, FiSliders } from 'react-icons/fi';
 import { cn } from '../utils/cn';
-
-const MODE_CONFIG = {
-  format: {
-    icon: FiRefreshCw,
-    label: 'Format',
-    description: 'Convert file type'
-  },
-  enhance: {
-    icon: FiZap,
-    label: 'Enhance',
-    description: 'Improve quality'
-  },
-  clean: {
-    icon: FiScissors,
-    label: 'Clean',
-    description: 'Trim silence'
-  },
-  modify: {
-    icon: FiSliders,
-    label: 'Modify',
-    description: 'Speed, pitch & cut'
-  }
-};
+import { useTranslation } from '../utils/i18n';
 
 export function ModeSelector({ selected, onChange }) {
+  const { t } = useTranslation();
   const modes = ['format', 'enhance', 'clean', 'modify'];
+
+  const MODE_CONFIG = {
+    format: {
+      icon: FiRefreshCw,
+      label: t('modeConvert'),
+      description: t('modeFormatDesc')
+    },
+    enhance: {
+      icon: FiZap,
+      label: t('modeMaster'),
+      description: t('modeEnhanceDesc')
+    },
+    clean: {
+      icon: FiScissors,
+      label: t('modeTrim'),
+      description: t('modeCleanDesc')
+    },
+    modify: {
+      icon: FiSliders,
+      label: t('modeModify'),
+      description: t('modeModifyDesc')
+    }
+  };
 
   return (
     <div className="space-y-2">
-      <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Operation Mode</p>
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{t('mode')}</p>
       <div className="space-y-1.5">
         {modes.map(mode => {
           const config = MODE_CONFIG[mode];

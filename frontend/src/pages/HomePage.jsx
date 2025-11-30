@@ -22,7 +22,9 @@ import { designTokens } from '../utils/theme';
 import { themeClasses } from '../utils/themeColors';
 import { getFileMetadata, formatFileSize, formatDuration, getAudioDuration } from '../utils/audioUtils';
 import { notifySuccess, notifyError } from '../utils/notifications';
+
 import { useSettingsContext } from '../context/SettingsContext';
+import { useTranslation } from '../utils/i18n';
 
 const formatOptions = ['AAC', 'MP3', 'WAV', 'FLAC', 'OGG', 'M4A'];
 
@@ -36,6 +38,7 @@ export function HomePage({
   const { theme } = useTheme();
   const { convert, loading: converting } = useConvertAudio();
   const { settings } = useSettingsContext();
+  const { t } = useTranslation();
 
   // Mode state
   const [mode, setMode] = useState('format'); // 'format' | 'enhance' | 'clean' | 'modify'
@@ -80,8 +83,8 @@ export function HomePage({
     filesCount: files.length,
     format: mode === 'format' ? selectedFormat : 
             mode === 'enhance' ? masterPreset : 
-            mode === 'clean' ? 'Auto Trim' : 
-            mode === 'modify' ? `Speed ${modifyParams.speed}x` : 'Modify',
+            mode === 'clean' ? t('autoTrim') : 
+            mode === 'modify' ? `${t('speed')} ${modifyParams.speed}x` : t('modify'),
     status: processingStatus
   };
 
@@ -130,7 +133,7 @@ export function HomePage({
         if (duplicateCount > 0) {
           setToast({ 
             type: 'info', 
-            message: `${duplicateCount} duplicate file(s) skipped` 
+            message: `${duplicateCount} ${t('duplicateSkipped')}` 
           });
         }
         return;
@@ -140,13 +143,13 @@ export function HomePage({
       if (duplicateCount > 0) {
         setToast({ 
           type: 'info', 
-          message: `${duplicateCount} duplicate file(s) skipped` 
+          message: `${duplicateCount} ${t('duplicateSkipped')}` 
         });
       }
 
       // Add files to UI immediately
       setFiles(prev => [...prev, ...newUniqueFiles]);
-      setToast({ type: 'info', message: `Adding ${newUniqueFiles.length} file(s)...` });
+      setToast({ type: 'info', message: t('addingFiles', { count: newUniqueFiles.length }) });
 
       // Auto-fill output folder if not already set
       if (!outputFolder && newUniqueFiles.length > 0) {
@@ -214,7 +217,7 @@ export function HomePage({
                 console.error('Failed to read file:', immediateFile.path, error);
                 setFiles(prev => prev.map(f => 
                   f.id === immediateFile.id 
-                    ? { ...f, status: 'error', error: 'Failed to read file' }
+                    ? { ...f, status: 'error', error: t('failedToRead') }
                     : f
                 ));
                 return;
@@ -225,7 +228,7 @@ export function HomePage({
             if (fileSize > maxSizeBytes) {
               setFiles(prev => prev.map(f => 
                 f.id === immediateFile.id 
-                  ? { ...f, status: 'error', error: `Exceeds ${maxSizeMB}MB limit` }
+                  ? { ...f, status: 'error', error: t('exceedsLimit', { size: maxSizeMB }) }
                   : f
               ));
               return;
@@ -242,17 +245,43 @@ export function HomePage({
               }
             }
 
-            // Update with duration and mark as ready
+            // Load metadata in background (non-blocking)
+            let metadata = {};
+            try {
+              const analysisPayload = {
+                files: [immediateFile.path],
+                format: 'wav',
+                output: './',
+                operation: 'analyze'
+              };
+              
+              const result = await invoke('analyze_audio', { payload: analysisPayload });
+              
+              if (result.status === 'success' && result.data && result.data.length > 0) {
+                const analysis = result.data[0];
+                metadata = {
+                  bitrate: analysis.bit_rate,
+                  channels: analysis.channels,
+                  sampleRate: analysis.sample_rate,
+                  codec: analysis.codec_name || analysis.codec
+                };
+              }
+            } catch (error) {
+              // Metadata is optional - don't fail if analysis fails
+              console.warn('Metadata analysis failed for', immediateFile.name, error);
+            }
+
+            // Update with duration, metadata and mark as ready
             setFiles(prev => prev.map(f => 
               f.id === immediateFile.id 
-                ? { ...f, duration, status: 'ready' }
+                ? { ...f, duration, ...metadata, status: 'ready' }
                 : f
             ));
           } catch (error) {
             console.error('Failed to load metadata for', immediateFile.name, error);
             setFiles(prev => prev.map(f => 
               f.id === immediateFile.id 
-                ? { ...f, status: 'error', error: 'Failed to load' }
+                ? { ...f, status: 'error', error: t('failedToLoad') }
                 : f
             ));
           }
@@ -261,7 +290,7 @@ export function HomePage({
 
     } catch (error) {
       console.error('Error adding files:', error);
-      setToast({ type: 'error', message: 'Failed to add files' });
+      setToast({ type: 'error', message: t('failedToAdd') });
     }
   }, [outputFolder, settings, setOutputFolder]);
 
@@ -399,12 +428,12 @@ export function HomePage({
   const handleSmartAnalysis = async () => {
     console.log('[HomePage] Smart Analysis started');
     if (files.length === 0) {
-      setToast({ type: 'info', message: 'Please add a file to analyze' });
+      setToast({ type: 'info', message: t('pleaseAddAnalyze') });
       return;
     }
 
     try {
-      setToast({ type: 'info', message: 'Analyzing audio...' });
+      setToast({ type: 'info', message: t('analyzing') });
       
       // Analyze the first file
       const fileToAnalyze = files[0];
@@ -439,27 +468,27 @@ export function HomePage({
 
         setToast({ 
           type: 'success', 
-          message: `Detected ${suggestion} content. Preset updated.` 
+          message: t('detectedContent', { content: suggestion }) 
         });
       } else {
-        throw new Error(result.message || 'Analysis failed');
+        throw new Error(result.message || t('analysisFailed'));
       }
 
     } catch (error) {
       console.error('Analysis error:', error);
-      setToast({ type: 'error', message: 'Smart analysis failed' });
+      setToast({ type: 'error', message: t('smartAnalysisFailed') });
     }
   };
 
   // Handle process button
   const handleProcess = async () => {
     if (files.length === 0) {
-      setToast({ type: 'error', message: 'Please add files to process' });
+      setToast({ type: 'error', message: t('pleaseAddProcess') });
       return;
     }
 
     if (!outputFolder) {
-      setToast({ type: 'error', message: 'Please select an output folder' });
+      setToast({ type: 'error', message: t('pleaseSelectOutput') });
       return;
     }
 
@@ -467,7 +496,7 @@ export function HomePage({
       // Reset all files to ready (in case they were done/error from previous run)
       setFiles(prev => prev.map(f => ({ ...f, status: 'ready', error: null, output: null })));
       setProgress(0);
-      setProcessingStatus('Starting...');
+      setProcessingStatus(t('starting'));
       setErrorFiles([]);
 
       const payload = buildPayload();
@@ -490,22 +519,22 @@ export function HomePage({
       setFiles(prev => prev.map(f => ({
         ...f,
         status: 'error',
-        error: 'Failed to start processing'
+        error: t('failedToStart')
       })));
       
       setProgress(0);
-      setProcessingStatus('Failed');
+      setProcessingStatus(t('failed'));
       
       // Show user-friendly error
       const isFFmpegMissing = error.message?.toLowerCase().includes('located') || 
                              error.message?.toLowerCase().includes('install ffmpeg');
       
-      let userMessage = 'Processing failed. Please try again.';
+      let userMessage = t('processingFailedTryAgain');
       
       if (isFFmpegMissing) {
-        userMessage = 'Audio processing tools not found. Please restart the app.';
+        userMessage = t('toolsNotFound');
       } else if (error.message?.includes('missing field')) {
-        userMessage = 'Invalid configuration. Please check your settings.';
+        userMessage = t('invalidConfig');
       } else if (error.message) {
         // Only show error message if it's not too technical
         const simplifiedMessage = error.message.replace(/`.*?`/g, '').trim();
@@ -526,12 +555,17 @@ export function HomePage({
       unlisten = await listen('conversion-progress', (event) => {
         const payload = event.payload;
 
+        // IGNORE analysis events - they're for metadata only, not conversion progress
+        if (payload.operation_type === 'analyze') {
+          console.log('[HomePage] Ignoring analysis event');
+          return;
+        }
+
         // Handle progress events
         if (payload.event === 'progress') {
           const { index, total, file, status } = payload;
           
           setCurrentFile(file);
-          setProgress((index / total) * 100);
           setProcessingStatus(`Processing ${index}/${total}`);
 
           // Update individual file status
@@ -540,13 +574,13 @@ export function HomePage({
           ));
         }
 
-        // Handle complete event
+          // Handle complete event
         if (payload.event === 'complete') {
           const { status, message, outputs = [] } = payload;
 
           if (status === 'success') {
+            setProcessingStatus(t('processingCompleteTitle'));
             setProgress(100);
-            setProcessingStatus('Complete');
             setCurrentFile('');
             
             // Mark all files as done
@@ -556,9 +590,9 @@ export function HomePage({
               output: (outputs && outputs[i]) || null
             })));
 
-            setToast({ type: 'success', message: message || 'Processing complete!' });
+            setToast({ type: 'success', message: message || t('processingComplete') });
             if (settings.notifications) {
-              notifySuccess('Processing Complete', `${files.length} file(s) processed successfully`);
+              notifySuccess(t('processingCompleteTitle'), t('filesProcessedSuccess', { count: files.length }));
             }
 
             // Auto-clear if enabled
@@ -572,21 +606,21 @@ export function HomePage({
             setFiles(prev => prev.map(f => ({
               ...f,
               status: 'error',
-              error: 'Processing failed'
+              error: t('processingFailed')
             })));
 
             setProgress(0);
-            setProcessingStatus('Failed');
+            setProcessingStatus(t('failed'));
             setCurrentFile('');
             
             // Show user-friendly error message
             const isFFmpegMissing = message?.toLowerCase().includes('located') || 
                                    message?.toLowerCase().includes('install ffmpeg');
             
-            let userMessage = 'Processing failed. Check your files and try again.';
+            let userMessage = t('processingFailedCheck');
             
             if (isFFmpegMissing) {
-              userMessage = 'Audio processing tools not found. Please restart the app.';
+              userMessage = t('toolsNotFound');
             } else if (message && message.length < 100 && !message.includes('Error:')) {
               userMessage = message;
             }
@@ -609,17 +643,17 @@ export function HomePage({
 
   return (
     <div
-      className={`min-h-screen bg-gradient-to-br ${themeClasses.pageBackground} px-4 py-10 text-slate-900 transition duration-smooth dark:text-slate-100`}
+      className={`min-h-screen bg-gradient-to-br ${themeClasses.pageBackground} text-slate-900 transition duration-smooth dark:text-slate-100`}
       style={{ fontFamily: designTokens.font }}
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-full flex-col gap-4 overflow-x-hidden p-4 lg:gap-6 lg:p-6">
         {/* Header */}
-        <header className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth`}>
+        <header className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-4 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Harmonix SE</p>
-              <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Audio Processing Suite</h1>
-              <p className="text-sm text-slate-600 dark:text-slate-300">Convert, master, and trim your audio files</p>
+              <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{t('audioSuite')}</h1>
+              <p className="text-sm text-slate-600 dark:text-slate-300">{t('appDesc')}</p>
             </div>
             <button
               onClick={onOpenSettings}
@@ -631,35 +665,35 @@ export function HomePage({
           </div>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
+        <div className="flex flex-1 gap-6">
           {/* Sidebar */}
-          <aside className={`glass-surface relative overflow-hidden rounded-card border ${themeClasses.card} p-5 shadow-soft transition duration-smooth`}>
-            <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/30 to-white/0 opacity-80 dark:from-white/10 dark:via-white/5 dark:to-transparent" />
-            <div className="relative space-y-6">
+          <aside className={`glass-surface scrollbar-hide hidden min-w-[280px] max-w-[380px] flex-col rounded-card border ${themeClasses.card} p-5 shadow-soft transition duration-smooth lg:flex`}>
+            <div className="relative flex flex-1 flex-col space-y-6">
               {/* Mode Selector in Sidebar */}
               <ModeSelector selected={mode} onChange={setMode} />
               
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Workspace</p>
-                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Session overview</h2>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{t('workspace')}</p>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">{t('sessionOverview')}</h2>
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  {mode === 'format' && 'Convert audio between different formats'}
-                  {mode === 'enhance' && 'Enhance audio quality with professional presets'}
-                  {mode === 'clean' && 'Automatically remove silence from recordings'}
-                  {mode === 'modify' && 'Change speed, pitch, and cut audio'}
+                  {mode === 'format' && t('modeFormatDesc')}
+                  {mode === 'enhance' && t('modeEnhanceDesc')}
+                  {mode === 'clean' && t('modeCleanDesc')}
+                  {mode === 'modify' && t('modeModifyDesc')}
                 </p>
               </div>
+              
               <div className={`space-y-3 rounded-2xl border ${themeClasses.surface} p-4`}>
                 <div className="flex items-center justify-between text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  <span>Files</span>
+                  <span>{t('files')}</span>
                   <span>{sessionSummary.filesCount}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  <span>Mode</span>
+                  <span>{t('mode')}</span>
                   <span>{sessionSummary.format}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  <span>Status</span>
+                  <span>{t('status')}</span>
                   <span>{sessionSummary.status}</span>
                 </div>
               </div>
@@ -667,11 +701,13 @@ export function HomePage({
           </aside>
 
           {/* Main Content */}
-          <main className="space-y-6">
+          <main className="scrollbar-hide flex flex-1 flex-col gap-4 lg:gap-6">
             {/* Drag & Drop + Controls */}
-            <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.5fr,1fr]`}>
-              <DragDropArea onFilesAdded={handleFilesAdded} />
-              <div className={`flex flex-col justify-between gap-6 rounded-card border ${themeClasses.surface} p-4`}>
+            <section className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth min-[1320px]:flex-row`}>
+              <div className="min-[1320px]:min-w-[440px] min-[1320px]:max-w-[600px] min-[1320px]:flex-1" style={{flex: '1 1 520px'}}>
+                <DragDropArea onFilesAdded={handleFilesAdded} />
+              </div>
+              <div className={`flex h-full min-w-0 flex-1 flex-col justify-between gap-6 rounded-card border ${themeClasses.surface} p-4 min-[1320px]:min-w-[440px]`}>
                 {mode === 'format' && (
                   <FormatSelector formats={formatOptions} selected={selectedFormat} onSelect={setSelectedFormat} />
                 )}
@@ -712,14 +748,16 @@ export function HomePage({
             </section>
 
             {/* File List + Progress */}
-            <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.5fr,1fr]`}>
-              <FileListPanel 
-                files={files} 
-                onClearAll={handleClearAll} 
-                onRemoveFile={handleRemoveFile}
-                onReload={handleReload}
-              />
-              <div className="flex min-w-0 flex-col gap-4">
+            <section className={`flex flex-1 flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth min-[1320px]:flex-row`}>
+              <div className="flex h-full flex-col overflow-hidden min-[1320px]:min-w-[440px] min-[1320px]:max-w-[600px] min-[1320px]:flex-1" style={{flex: '1 1 520px'}}>
+                <FileListPanel 
+                  files={files} 
+                  onClearAll={handleClearAll} 
+                  onRemoveFile={handleRemoveFile}
+                  onReload={handleReload}
+                />
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-4 min-[1320px]:min-w-[440px]">
                 <ProgressIndicator 
                   progress={progress} 
                   status={processingStatus}
@@ -730,11 +768,11 @@ export function HomePage({
                   disabled={!canProcess}
                   className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white shadow-md transition duration-smooth hover:-translate-y-[1px] hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                 >
-                  {converting ? 'Processing...' : 'Process Files'}
+                  {converting ? t('processing') : t('processFiles')}
                 </button>
                 {toast && (
                   <ToastMessage
-                    title={toast.type === 'success' ? 'Success' : toast.type === 'error' ? 'Error' : 'Info'}
+                    title={toast.type === 'success' ? t('success') : toast.type === 'error' ? t('error') : t('info')}
                     message={toast.message}
                     tone={toast.type}
                   />

@@ -1,27 +1,22 @@
 import React, { useState } from 'react';
 import { FiZap } from 'react-icons/fi';
 import { cn } from '../utils/cn';
+import { useTranslation } from '../utils/i18n';
 
 export const PRESETS = {
   Music: {
-    label: 'Music',
-    description: 'Optimized for music tracks',
     target_lufs: -12.0,
     apply_compression: true,
     apply_limiter: true,
     output_gain: 0.0
   },
   Podcast: {
-    label: 'Podcast',
-    description: 'Clear speech with warmth',
     target_lufs: -16.0,
     apply_compression: true,
     apply_limiter: true,
     output_gain: 1.5
   },
   'Voice-over': {
-    label: 'Voice-over',
-    description: 'Professional narration',
     target_lufs: -18.0,
     apply_compression: true,
     apply_limiter: true,
@@ -30,8 +25,27 @@ export const PRESETS = {
 };
 
 export function MasterControls({ preset, onPresetChange, parameters, onParametersChange, onSmartAnalysis }) {
+  const { t } = useTranslation();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const presetsWithTranslations = {
+    Music: {
+      ...PRESETS.Music,
+      label: t('presetMusic'),
+      description: t('presetMusicDesc')
+    },
+    Podcast: {
+      ...PRESETS.Podcast,
+      label: t('presetPodcast'),
+      description: t('presetPodcastDesc')
+    },
+    'Voice-over': {
+      ...PRESETS['Voice-over'],
+      label: t('presetVoiceover'),
+      description: t('presetVoiceoverDesc')
+    }
+  };
 
   const handleSmartClick = async () => {
     if (onSmartAnalysis) {
@@ -44,6 +58,9 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
   const handlePresetChange = (newPreset) => {
     onPresetChange(newPreset);
     // Update parameters based on preset
+    // Note: We need to access the static config values, but since we moved PRESETS inside component,
+    // we can just use the local PRESETS object which has the values.
+    // The values (target_lufs etc) are not translated, so it's safe.
     if (PRESETS[newPreset]) {
       onParametersChange({
         target_lufs: PRESETS[newPreset].target_lufs,
@@ -60,7 +77,7 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-            Master Preset
+            {t('masterPreset')}
           </label>
           <button
             onClick={handleSmartClick}
@@ -69,11 +86,11 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
             title="Auto-detect content and suggest preset"
           >
             <FiZap className={cn("h-3.5 w-3.5", isAnalyzing && "animate-pulse")} />
-            {isAnalyzing ? 'Auto...' : 'Auto'}
+            {isAnalyzing ? t('autoAnalyzing') : t('auto')}
           </button>
         </div>
         <div className="grid gap-2">
-          {Object.entries(PRESETS).map(([key, config]) => (
+          {Object.entries(presetsWithTranslations).map(([key, config]) => (
             <button
               key={key}
               onClick={() => handlePresetChange(key)}
@@ -110,7 +127,7 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
         onClick={() => setShowAdvanced(!showAdvanced)}
         className="flex w-full items-center justify-between rounded-xl border border-white/40 bg-white/30 px-4 py-2.5 text-sm font-semibold text-slate-700 transition duration-smooth hover:bg-white/50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
       >
-        <span>Advanced Parameters</span>
+        <span>{t('advancedParams')}</span>
         <span className={cn('transition-transform duration-smooth', showAdvanced && 'rotate-180')}>▼</span>
       </button>
 
@@ -121,7 +138,7 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                Target LUFS
+                {t('targetLufs')}
               </label>
               <span className="text-xs text-slate-600 dark:text-slate-300">
                 {parameters.target_lufs.toFixed(1)} dB
@@ -137,15 +154,15 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
               className="h-2 w-full appearance-none rounded-full bg-white/50 dark:bg-white/10"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Loudness normalization level (lower = quieter)
+              {t('lufsDesc')}
             </p>
           </div>
 
           {/* Compression Toggle */}
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Apply Compression</p>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Reduce dynamic range</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{t('applyCompression')}</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{t('compressionDesc')}</p>
             </div>
             <button
               onClick={() => onParametersChange({ ...parameters, apply_compression: !parameters.apply_compression })}
@@ -164,8 +181,8 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
           {/* Limiter Toggle */}
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Apply Limiter</p>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Prevent clipping</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{t('applyLimiter')}</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{t('limiterDesc')}</p>
             </div>
             <button
               onClick={() => onParametersChange({ ...parameters, apply_limiter: !parameters.apply_limiter })}
@@ -185,7 +202,7 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                Output Gain
+                {t('outputGain')}
               </label>
               <span className="text-xs text-slate-600 dark:text-slate-300">
                 {parameters.output_gain > 0 ? '+' : ''}{parameters.output_gain.toFixed(1)} dB
@@ -201,7 +218,7 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
               className="h-2 w-full appearance-none rounded-full bg-white/50 dark:bg-white/10"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Final volume boost or reduction
+              {t('gainDesc')}
             </p>
           </div>
         </div>

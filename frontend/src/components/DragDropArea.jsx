@@ -5,8 +5,13 @@ import { readFile } from '@tauri-apps/plugin-fs';
 import { designTokens } from '../utils/theme';
 import { isAudioFile } from '../utils/audioUtils';
 
+import { useTranslation } from '../utils/i18n';
+
 export function DragDropArea({ onFilesAdded }) {
+  const { t } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
+
+  // ... (handlers remain same)
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -110,7 +115,7 @@ export function DragDropArea({ onFilesAdded }) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'glass-surface relative flex flex-col items-center justify-center overflow-hidden rounded-card border-2 bg-white p-10 shadow-soft transition-all duration-smooth dark:bg-white/10',
+        'glass-surface relative flex h-full flex-col items-center justify-center overflow-hidden rounded-card border-2 bg-white p-10 shadow-soft transition-all duration-smooth dark:bg-white/10',
         isDragging
           ? 'border-accent bg-accent/10 shadow-xl dark:bg-accent/20 scale-[1.02]'
           : 'border-slate-200 hover:border-slate-300 hover:shadow-xl dark:border-white/10 dark:hover:border-white/20'
@@ -143,12 +148,12 @@ export function DragDropArea({ onFilesAdded }) {
         
         <div className="space-y-2">
           <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            {isDragging ? 'Drop files here' : 'Drop your audio files'}
+            {isDragging ? t('dropFilesHere') : t('dropAudioFiles')}
           </p>
           <p className="max-w-xs text-sm text-slate-600 dark:text-slate-300">
             {isDragging 
-              ? 'Release to add files to the queue'
-              : 'Drag files from Finder or click the button below'}
+              ? t('releaseToAdd')
+              : t('dragOrClick')}
           </p>
         </div>
         
@@ -158,7 +163,7 @@ export function DragDropArea({ onFilesAdded }) {
           className="flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white shadow-md transition duration-smooth hover:-translate-y-[1px] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
         >
           <FiFolder className="h-4 w-4" />
-          Browse Files
+          {t('browseFiles')}
         </button>
       </div>
     </div>

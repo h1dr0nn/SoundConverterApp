@@ -3,17 +3,19 @@ import { FiArrowLeft, FiSettings, FiSliders, FiSun, FiMoon, FiInfo } from 'react
 import { designTokens } from '../utils/theme';
 import { useTheme } from '../hooks/useTheme';
 import { useSettingsContext } from '../context/SettingsContext';
+import { useTranslation } from '../utils/i18n';
 
 export function SettingsPage({ onBack}) {
   const { theme, toggleTheme } = useTheme();
   const { settings } = useSettingsContext();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('configuration');
 
   const tabs = [
-    { id: 'configuration', label: 'Configuration', icon: FiSettings },
-    { id: 'advanced', label: 'Advanced', icon: FiSliders },
-    { id: 'appearance', label: 'Appearance', icon: theme === 'dark' ? FiMoon : FiSun },
-    { id: 'about', label: 'About', icon: FiInfo }
+    { id: 'configuration', label: t('configuration'), icon: FiSettings },
+    { id: 'advanced', label: t('advanced'), icon: FiSliders },
+    { id: 'appearance', label: t('appearance'), icon: theme === 'dark' ? FiMoon : FiSun },
+    { id: 'about', label: t('about'), icon: FiInfo }
   ];
 
   return (
@@ -32,8 +34,8 @@ export function SettingsPage({ onBack}) {
             <FiArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Application</p>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Settings</h1>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{t('application')}</p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{t('settings')}</h1>
           </div>
         </header>
 
@@ -74,13 +76,14 @@ export function SettingsPage({ onBack}) {
 
 function ConfigurationTab() {
   const { settings, updateSetting } = useSettingsContext();
+  const { t } = useTranslation();
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">General Configuration</h3>
+        <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">{t('generalConfig')}</h3>
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Configure default settings for audio processing
+          {t('generalConfigDesc')}
         </p>
       </div>
 
@@ -88,9 +91,9 @@ function ConfigurationTab() {
         {/* Default Output Format */}
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex-1">
-            <p className="font-semibold text-slate-900 dark:text-white">Default Output Format</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('defaultFormat')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Format to pre-select when converting files
+              {t('defaultFormatDesc')}
             </p>
           </div>
           <select
@@ -110,9 +113,9 @@ function ConfigurationTab() {
         {/* Default Output Location */}
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex-1">
-            <p className="font-semibold text-slate-900 dark:text-white">Default Output Location</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('outputLocation')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Where to save processed files by default
+              {t('outputLocationDesc')}
             </p>
           </div>
           <select
@@ -129,9 +132,9 @@ function ConfigurationTab() {
         {/* Auto-clear completed files */}
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex-1">
-            <p className="font-semibold text-slate-900 dark:text-white">Auto-clear Completed Files</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('autoClear')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Automatically remove files from queue after processing
+              {t('autoClearDesc')}
             </p>
           </div>
           <button
@@ -151,9 +154,9 @@ function ConfigurationTab() {
         {/* Desktop Notifications */}
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex-1">
-            <p className="font-semibold text-slate-900 dark:text-white">Desktop Notifications</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('notifications')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Show system notifications when processing completes
+              {t('notificationsDesc')}
             </p>
           </div>
           <button
@@ -176,13 +179,14 @@ function ConfigurationTab() {
 
 function AdvancedTab() {
   const { settings, updateSetting } = useSettingsContext();
+  const { t } = useTranslation();
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">Advanced Settings</h3>
+        <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">{t('advancedSettings')}</h3>
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Fine-tune performance and processing behavior
+          {t('advancedSettingsDesc')}
         </p>
       </div>
 
@@ -190,9 +194,9 @@ function AdvancedTab() {
         {/* Concurrent Processing */}
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex-1">
-            <p className="font-semibold text-slate-900 dark:text-white">Concurrent File Processing</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('concurrentFiles')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Number of files to process simultaneously
+              {t('concurrentFilesDesc')}
             </p>
           </div>
           <select
@@ -210,9 +214,9 @@ function AdvancedTab() {
         {/* Max File Size */}
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="mb-3">
-            <p className="font-semibold text-slate-900 dark:text-white">Maximum File Size</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('maxFileSize')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Maximum size per file (MB) - larger files will be rejected
+              {t('maxFileSizeDesc')}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -234,9 +238,9 @@ function AdvancedTab() {
         {/* Debug Logging */}
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex-1">
-            <p className="font-semibold text-slate-900 dark:text-white">Enable Debug Logging</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('enableLogging')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Log detailed processing information for troubleshooting
+              {t('enableLoggingDesc')}
             </p>
           </div>
           <button
@@ -255,7 +259,7 @@ function AdvancedTab() {
 
         {/* FFmpeg Version Info */}
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-          <p className="font-semibold text-slate-900 dark:text-white">FFmpeg Backend</p>
+          <p className="font-semibold text-slate-900 dark:text-white">{t('ffmpegBackend')}</p>
           <p className="mt-2 font-mono text-xs text-slate-600 dark:text-slate-400">
             Version: 6.1.1 (bundled)
           </p>
@@ -270,23 +274,50 @@ function AdvancedTab() {
 
 function AppearanceTab({ theme, toggleTheme }) {
   const { settings, updateSetting } = useSettingsContext();
+  const { t } = useTranslation();
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">Appearance</h3>
+        <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">{t('appearance')}</h3>
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Customize the visual appearance of the application
+          {t('appearanceDesc')}
         </p>
       </div>
 
       <div className="space-y-4">
+        {/* Language Selector */}
+        <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+          <div className="flex-1">
+            <p className="font-semibold text-slate-900 dark:text-white">{t('language')}</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              {t('languageDesc')}
+            </p>
+          </div>
+          <select
+            value={settings.language}
+            onChange={(e) => updateSetting('language', e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 transition focus:outline-none focus:ring-2 focus:ring-accent dark:border-white/10 dark:bg-white/10 dark:text-slate-100"
+          >
+            <option value="zh">中文</option>
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="pt">Português</option>
+            <option value="ru">Русский</option>
+            <option value="vi">Tiếng Việt</option>
+          </select>
+        </div>
         {/* Theme Toggle */}
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex-1">
-            <p className="font-semibold text-slate-900 dark:text-white">Theme</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('theme')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Switch between light and dark mode
+              {t('themeDesc')}
             </p>
           </div>
           
@@ -318,9 +349,9 @@ function AppearanceTab({ theme, toggleTheme }) {
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="font-semibold text-slate-900 dark:text-white">Accent Color</p>
+              <p className="font-semibold text-slate-900 dark:text-white">{t('accentColor')}</p>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                Primary color for buttons and highlights
+                {t('accentColorDesc')}
               </p>
             </div>
             <div className="flex gap-2">
@@ -343,9 +374,9 @@ function AppearanceTab({ theme, toggleTheme }) {
         {/* Font Size */}
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex-1">
-            <p className="font-semibold text-slate-900 dark:text-white">Font Size</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{t('fontSize')}</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Adjust text size throughout the application
+              {t('fontSizeDesc')}
             </p>
           </div>
           <select
@@ -363,51 +394,99 @@ function AppearanceTab({ theme, toggleTheme }) {
   );
 }
 
+import { check } from '@tauri-apps/plugin-updater';
+import { ask, message } from '@tauri-apps/plugin-dialog';
+import { relaunch } from '@tauri-apps/plugin-process';
+
 function AboutTab() {
+  const { t } = useTranslation();
+  const [checking, setChecking] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    setChecking(true);
+    try {
+      const update = await check();
+      if (update?.available) {
+        const yes = await ask(`Update to ${update.version} is available!\n\nRelease notes: ${update.body}`, {
+          title: 'Update Available',
+          kind: 'info',
+          okLabel: 'Update',
+          cancelLabel: 'Cancel'
+        });
+        if (yes) {
+          await update.downloadAndInstall();
+          await relaunch();
+        }
+      } else {
+        await message('You are on the latest version.', { title: 'No Updates', kind: 'info' });
+      }
+    } catch (error) {
+      console.error(error);
+      let errorMessage = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
+      
+      if (errorMessage.includes('Could not fetch a valid release JSON')) {
+        errorMessage = 'Update server not reachable. (This is expected if no release has been published yet)';
+      }
+      
+      await message(errorMessage, { title: 'Update Check Failed', kind: 'warning' });
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Harmonix SE</h3>
-        <p className="text-sm text-slate-600 dark:text-slate-300">Version 1.0.1</p>
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Harmonix SE</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-300">Version 1.0.2</p>
+        </div>
+        <button
+          onClick={handleCheckUpdate}
+          disabled={checking}
+          className="flex h-10 w-40 items-center justify-center whitespace-nowrap rounded-lg bg-slate-100 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/20"
+        >
+          {checking ? 'Checking...' : 'Check for Updates'}
+        </button>
       </div>
 
       <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Built with</span>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('builtWith')}</span>
           <span className="text-sm text-slate-600 dark:text-slate-300">Tauri + React + Python</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Backend</span>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('backend')}</span>
           <span className="text-sm text-slate-600 dark:text-slate-300">FFmpeg + pydub</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">License</span>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('license')}</span>
           <span className="text-sm text-slate-600 dark:text-slate-300">MIT</span>
         </div>
         <div className="flex items-center justify-between border-t border-slate-200 pt-3 dark:border-white/10">
-          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Created by</span>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('createdBy')}</span>
           <span className="text-sm font-bold text-accent">h1dr0n</span>
         </div>
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Features</h4>
+        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('features')}</h4>
         <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
           <li className="flex items-start gap-2">
             <span className="text-accent">•</span>
-            <span>Convert audio files between multiple formats</span>
+            <span>{t('feature1')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-accent">•</span>
-            <span>Master audio with professional presets</span>
+            <span>{t('feature2')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-accent">•</span>
-            <span>Trim silence automatically from recordings</span>
+            <span>{t('feature3')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-accent">•</span>
-            <span>Batch processing for multiple files</span>
+            <span>{t('feature4')}</span>
           </li>
         </ul>
       </div>

@@ -3,12 +3,15 @@ import WaveSurfer from 'wavesurfer.js';
 import { FiPlay, FiPause } from 'react-icons/fi';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { cn } from '../utils/cn';
+import { loadPeaks, savePeaks } from '../utils/waveformCache';
 
 export function WaveformPlayer({ file, minimal = false }) {
   const containerRef = useRef(null);
   const wavesurfer = useRef(null);
+  const activeUrlRef = useRef(null); // Move to top level
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [isLoadingCache, setIsLoadingCache] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || !file) return;
@@ -34,12 +37,13 @@ export function WaveformPlayer({ file, minimal = false }) {
     wavesurfer.current = ws;
     let isDestroyed = false;
 
-    // Keep track of the object URL to revoke it later
-    const activeUrlRef = useRef(null);
-
-    // Load audio file
+    // Load audio file with caching
     const loadAudio = async () => {
       try {
+        // Try to load from cache first
+        setIsLoadingCache(true);
+        const cachedPeaks = loadPeaks(file);
+        
         let url;
         if (file instanceof File) {
           url = URL.createObjectURL(file);
@@ -64,20 +68,33 @@ export function WaveformPlayer({ file, minimal = false }) {
 
         if (isDestroyed) {
           if (url) URL.revokeObjectURL(url);
+          setIsLoadingCache(false);
           return;
         }
 
         if (url) {
           activeUrlRef.current = url;
-          console.log('[WaveformPlayer] Loading URL:', url);
-          await ws.load(url);
+          
+          if (cachedPeaks) {
+            // Load with cached peaks for instant rendering
+            console.log('[WaveformPlayer] Loading from cache:', file.name);
+            await ws.load(url, cachedPeaks);
+            setIsLoadingCache(false);
+          } else {
+            // Load normally and cache peaks when ready
+            console.log('[WaveformPlayer] Loading without cache:', file.name);
+            setIsLoadingCache(false);
+            await ws.load(url);
+          }
         } else {
           console.warn('[WaveformPlayer] No URL generated for file:', file);
+          setIsLoadingCache(false);
         }
       } catch (err) {
         if (!isDestroyed) {
           console.error('[WaveformPlayer] Error loading audio:', err);
         }
+        setIsLoadingCache(false);
       }
     };
 
@@ -88,9 +105,17 @@ export function WaveformPlayer({ file, minimal = false }) {
       if (isDestroyed) return;
       console.log('[WaveformPlayer] Ready');
       setIsReady(true);
-      // Don't auto-play - let user initiate playback
-      // ws.play(); 
-      // setIsPlaying(true);
+      
+      // Save peaks to cache for future use
+      try {
+        const decodedData = ws.getDecodedData();
+        if (decodedData && decodedData.getChannelData) {
+          const peaks = decodedData.getChannelData(0);
+          savePeaks(file, peaks);
+        }
+      } catch (e) {
+        console.warn('[WaveformPlayer] Could not save peaks to cache:', e);
+      }
     });
 
     ws.on('play', () => setIsPlaying(true));

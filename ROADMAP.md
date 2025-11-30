@@ -98,28 +98,31 @@ Tauri (App Shell)
 
 **Status: 🚧 In Progress**
 
-#### **6.1 — Native Integration (macOS Focus)**  
+#### **6.1 — Native Integration (macOS Focus)**
+
 **Status: ✅ Complete**
 
 - [x] Dock Drag & Drop.
 - [x] Native Menu & Shortcuts (Cmd+O, Cmd+, …).
 
-#### **6.2 — Visual & Intelligence Enhancements**  
-**Status: 🚧 In Progress**
+#### **6.2 — Visual & Intelligence Enhancements**
+
+**Status: ✅ Complete**
 
 - [x] Waveform Preview.
 - [x] Smart Format Analysis.
-- [ ] Better waveform caching.
-- [ ] Enhanced progress animation.
-- [ ] Audio metadata display (bitrate, channels, duration).
+- [x] Better waveform caching.
+- [x] Enhanced progress animation.
+- [x] Audio metadata display (bitrate, channels, duration).
 
-#### **6.3 — System & Distribution Improvements**  
-**Status: 🚧 In Progress**
+#### **6.3 — System & Distribution Improvements**
 
-- [ ] Multi-language (EN/VI).
-- [ ] Auto-updater.
-- [ ] Settings persistence.
-- [ ] Crash logger (local only).
+**Status: ✅ Complete**
+
+- [x] Multi-language (EN/VI/JP/KR/CN/ES).
+- [x] Auto-updater.
+- [x] Settings persistence.
+- [x] Crash logger (local only).
 
 ---
 
@@ -168,6 +171,7 @@ Tauri (App Shell)
 **Status: Pending**
 
 #### **10.1 — Advanced Audio Tools**
+
 - [ ] Merge audio files.
 - [ ] Trim/cut via waveform.
 - [ ] Volume normalization.
@@ -175,15 +179,18 @@ Tauri (App Shell)
 - [ ] Advanced presets (VBR, channel modes…).
 
 #### **10.2 — Plugin Architecture**
+
 - [ ] Pluggable audio modules.
 - [ ] Public extension API.
 - [ ] Optional internal plugin marketplace.
 
 #### **10.3 — Cloud Sync**
+
 - [ ] Sync presets/history/settings.
 - [ ] Export/import profiles.
 
 #### **10.4 — Store Distribution**
+
 - [ ] macOS App Store distribution.
 - [ ] Microsoft Store distribution.
 - [ ] Flathub (Linux).
