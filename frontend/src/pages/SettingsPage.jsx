@@ -4,6 +4,9 @@ import { designTokens } from '../utils/theme';
 import { useTheme } from '../hooks/useTheme';
 import { useSettingsContext } from '../context/SettingsContext';
 import { useTranslation } from '../utils/i18n';
+import { check } from '@tauri-apps/plugin-updater';
+import { ask, message } from '@tauri-apps/plugin-dialog';
+import { relaunch } from '@tauri-apps/plugin-process';
 
 export function SettingsPage({ onBack}) {
   const { theme, toggleTheme } = useTheme();
@@ -20,7 +23,7 @@ export function SettingsPage({ onBack}) {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100/80 to-slate-50 px-4 py-10 text-slate-900 transition duration-smooth dark:from-[#101012] dark:via-[#141418] dark:to-[#0f0f12] dark:text-slate-100"
+      className="h-screen overflow-y-auto bg-gradient-to-br from-slate-50 via-slate-100/80 to-slate-50 px-4 py-10 text-slate-900 transition duration-smooth dark:from-[#101012] dark:via-[#141418] dark:to-[#0f0f12] dark:text-slate-100"
       style={{ fontFamily: designTokens.font }}
     >
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
@@ -393,10 +396,6 @@ function AppearanceTab({ theme, toggleTheme }) {
     </div>
   );
 }
-
-import { check } from '@tauri-apps/plugin-updater';
-import { ask, message } from '@tauri-apps/plugin-dialog';
-import { relaunch } from '@tauri-apps/plugin-process';
 
 function AboutTab() {
   const { t } = useTranslation();

@@ -171,12 +171,24 @@ jobs:
             attempt=1
             while [ $attempt -le $max_attempts ]; do
               echo "Attempt $attempt of $max_attempts..."
+              
+              # Clean up any mounted disk images before retry
+              if [ $attempt -gt 1 ]; then
+                echo "Cleaning up disk images..."
+                hdiutil detach /Volumes/HarmonixSE 2>/dev/null || true
+                sleep 2
+              fi
+              
               if tauri build --verbose -- ${{ matrix.args }}; then
                 echo "Build successful!"
                 break
               else
                 if [ $attempt -lt $max_attempts ]; then
-                  echo "Build failed, waiting 5 seconds before retry..."
+                  echo "Build failed, cleaning up and waiting 5 seconds before retry..."
+                  # Force unmount any stuck disk images
+                  hdiutil detach /Volumes/HarmonixSE -force 2>/dev/null || true
+                  # Clean up partial DMG files
+                  rm -f src-tauri/target/**/bundle/dmg/*.dmg 2>/dev/null || true
                   sleep 5
                 else
                   echo "Build failed after $max_attempts attempts"

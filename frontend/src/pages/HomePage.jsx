@@ -643,10 +643,10 @@ export function HomePage({
 
   return (
     <div
-      className={`min-h-screen bg-gradient-to-br ${themeClasses.pageBackground} text-slate-900 transition duration-smooth dark:text-slate-100`}
+      className={`h-screen overflow-y-auto bg-gradient-to-br ${themeClasses.pageBackground} text-slate-900 transition duration-smooth dark:text-slate-100`}
       style={{ fontFamily: designTokens.font }}
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-full flex-col gap-4 overflow-x-hidden p-4 lg:gap-6 lg:p-6">
+      <div className="mx-auto flex min-h-full w-full max-w-full flex-col gap-4 overflow-x-hidden p-4 lg:gap-6 lg:p-6">
         {/* Header */}
         <header className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-4 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-4">

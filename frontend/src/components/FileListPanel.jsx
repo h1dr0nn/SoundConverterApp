@@ -3,7 +3,7 @@ import { FiTrash2, FiX, FiLoader, FiRefreshCw, FiMusic, FiSquare } from 'react-i
 import { cn } from '../utils/cn';
 import { designTokens } from '../utils/theme';
 import { WaveformPlayer } from './WaveformPlayer';
-import { formatBitrate, formatChannels, formatSampleRate, formatCodec } from '../utils/metadataUtils';
+import { formatBitrate } from '../utils/metadataUtils';
 
 import { useTranslation } from '../utils/i18n';
 

@@ -16,9 +16,9 @@ export const generateFileKey = (file) => {
     const size = file.size || file.sizeBytes || 0;
     const modified = file.lastModified || 0;
     
-    // Create a simple hash-like key
+    // Create a simple hash-like key (encode to handle Unicode)
     const rawKey = `${path}_${size}_${modified}`;
-    const encoded = btoa(rawKey).replace(/[^a-zA-Z0-9]/g, '').substring(0, 80);
+    const encoded = encodeURIComponent(rawKey).replace(/[^a-zA-Z0-9]/g, '').substring(0, 80);
     return `${CACHE_PREFIX}${encoded}`;
   } catch (e) {
     console.warn('[WaveformCache] Failed to generate key:', e);
@@ -40,10 +40,17 @@ const downsamplePeaks = (peaks, targetLength = 1000) => {
     const start = i * blockSize;
     const end = start + blockSize;
     const slice = peaks.slice(start, end);
-    
-    // Take max absolute value in this block for visual accuracy
-    const max = Math.max(...slice.map(Math.abs));
-    downsampled.push(slice.find(v => Math.abs(v) === max) || slice[0]);
+    // Find max absolute value and the element in one pass
+    let max = 0;
+    let maxElement = slice[0];
+    for (let j = 0; j < slice.length; j++) {
+      const abs = Math.abs(slice[j]);
+      if (abs > max) {
+        max = abs;
+        maxElement = slice[j];
+      }
+    }
+    downsampled.push(maxElement);
   }
   
   return downsampled;
