@@ -105,7 +105,10 @@ jobs:
           fi
 
           "$PYTHON_BIN" -m pip install --upgrade pip
-          "$PYTHON_BIN" -m pip install -r requirements.txt
+
+          # Install dependencies into backend/vendor for bundling with app
+          echo "Installing Python dependencies to backend/vendor/"
+          "$PYTHON_BIN" -m pip install -r requirements.txt --target backend/vendor --upgrade
 
       - name: Locate Python (Windows)
         if: matrix.platform == 'windows-latest'
@@ -127,7 +130,10 @@ jobs:
         shell: pwsh
         run: |
           & $env:PYTHON_BIN -m pip install --upgrade pip
-          & $env:PYTHON_BIN -m pip install -r requirements.txt
+
+          # Install dependencies into backend/vendor for bundling with app
+          Write-Host "Installing Python dependencies to backend/vendor/"
+          & $env:PYTHON_BIN -m pip install -r requirements.txt --target backend/vendor --upgrade
 
       - name: Verify FFmpeg
         shell: bash

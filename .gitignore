@@ -198,3 +198,6 @@ src-tauri/gen/
 # Bundled binaries (downloaded by build scripts, not committed)
 src-tauri/binaries/
 !src-tauri/binaries/.gitkeep
+
+# Backend vendor dependencies (installed by CI/CD during build)
+backend/vendor/

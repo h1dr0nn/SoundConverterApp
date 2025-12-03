@@ -12,6 +12,13 @@ import sys
 import traceback
 from pathlib import Path
 
+# Add vendor directory to Python path for bundled dependencies (e.g., pydub)
+# This ensures dependencies installed via `pip install --target backend/vendor`
+# are available at runtime when bundled with Tauri
+_vendor_dir = Path(__file__).parent / "vendor"
+if _vendor_dir.exists():
+    sys.path.insert(0, str(_vendor_dir))
+
 from app.handler.converter import ConversionProgress, ConversionRequest, SoundConverter
 from app.handler.mastering import MasteringEngine, MasteringParameters, MasteringRequest
 from app.handler.modifier import ModificationRequest, process as process_modification
