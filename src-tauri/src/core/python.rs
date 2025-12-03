@@ -189,6 +189,14 @@ pub fn execute_python_conversion(
         .env("PYTHONUNBUFFERED", "1")
         .env("PYTHONDONTWRITEBYTECODE", "1");
 
+    // Hide console window on Windows to prevent terminal flash
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
     let mut child = command
         .spawn()
         .map_err(|e| format!("Failed to spawn Python process: {}", e))?;
