@@ -49,16 +49,14 @@ def main():
     )
 
     # 5. Process
-    converter = SoundConverter()
     print(f"Converting {input_file.name} to MP3...")
     
     try:
-        result = converter.process(request)
+        result = SoundConverter.convert(request)
         if result.success:
-            print(f"Success! Saved to: {result.output_path}")
+            print(f"Success! Output files: {result.outputs}")
         else:
-            print(f"Failed: {result.error}")
-            
+            print(f"Failed: {result.message}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
