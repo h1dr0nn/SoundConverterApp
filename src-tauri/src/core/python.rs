@@ -99,11 +99,19 @@ pub fn execute_python_conversion(
     };
 
     let ffmpeg_resource_path = format!("binaries/{}", ffmpeg_binary_name);
+    let ffmpeg_up_resource_path = format!("_up_/binaries/{}", ffmpeg_binary_name);
 
+    // Try _up_/binaries first (Windows MSI/EXE), then binaries/ (Portable/macOS/Linux)
     let mut ffmpeg_path_opt = app
         .path()
-        .resolve(&ffmpeg_resource_path, BaseDirectory::Resource)
-        .ok();
+        .resolve(&ffmpeg_up_resource_path, BaseDirectory::Resource)
+        .ok()
+        .filter(|p| p.exists())
+        .or_else(|| {
+            app.path()
+                .resolve(&ffmpeg_resource_path, BaseDirectory::Resource)
+                .ok()
+        });
 
     // In dev mode, if resource resolution fails, try direct filesystem path
     if ffmpeg_path_opt.is_none()
@@ -355,7 +363,13 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
     );
 
     // Try new binaries/ location first (for Phase 4 bundled Python)
-    let binaries_root = app.path().resolve("binaries", BaseDirectory::Resource).ok();
+    // Check _up_/binaries first (Windows MSI/EXE), then binaries/ (Portable/macOS/Linux)
+    let binaries_root = app
+        .path()
+        .resolve("_up_/binaries", BaseDirectory::Resource)
+        .ok()
+        .filter(|p| p.exists())
+        .or_else(|| app.path().resolve("binaries", BaseDirectory::Resource).ok());
 
     // Then try old bin/ locations (for backward compatibility)
     let bin_root_candidates = [
