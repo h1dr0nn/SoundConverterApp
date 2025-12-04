@@ -16,7 +16,8 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::default().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            #[cfg(desktop)]
+            // Only create native menu on macOS - Windows/Linux use custom titlebar
+            #[cfg(target_os = "macos")]
             {
                 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
                 let handle = app.handle();
