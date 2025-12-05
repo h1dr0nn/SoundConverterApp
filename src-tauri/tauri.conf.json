@@ -1,17 +1,38 @@
 {
-  "$schema": "https://schema.tauri.app/config/1",
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Harmonix SE",
+  "mainBinaryName": "harmonixse",
+  "version": "1.0.4",
+  "identifier": "com.h1dr0n.harmonixse",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Harmonix SE",
+        "width": 1400,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 650,
+        "resizable": true,
+        "fullscreen": false,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
   "bundle": {
     "active": true,
-    "windows": {
-      "nsis": {
-        "installerIcon": "icons/icon.ico",
-        "displayLanguageSelector": false
-      },
-      "wix": {
-        "language": "en-US"
-      },
-      "allowDowngrades": true
-    },
+    "targets": [
+      "msi",
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -47,40 +68,12 @@
       }
     ]
   },
-  "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "../frontend/dist",
-    "devUrl": "http://localhost:5173"
-  },
-  "productName": "HarmonixSE",
-  "mainBinaryName": "harmonixse",
-  "version": "1.0.3",
-  "identifier": "com.h1dr0n.harmonixse",
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/h1dr0nn/SoundConverterApp/releases/latest/download/latest.json"
+        "https://github.com/h1dr0nn/Hamonix-SoundEditor/releases/latest/download/latest.json"
       ],
-      "pubkey": ""
-    }
-  },
-  "app": {
-    "withGlobalTauri": false,
-    "windows": [
-      {
-        "title": "Harmonix SE",
-        "width": 1400,
-        "height": 800,
-        "minWidth": 900,
-        "minHeight": 650,
-        "resizable": true,
-        "dragDropEnabled": false,
-        "useHttpsScheme": true
-      }
-    ],
-    "security": {
-      "csp": null
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFDM0JDMUY1NzlDRTcwQTIKUldTaWNNNTU5Y0U3ck43a25jMGxmQW53YjkzRWFTYmpLSnFieWpSRTRGRE4vQnBjK1NZSlA5VjUK"
     }
   }
 }

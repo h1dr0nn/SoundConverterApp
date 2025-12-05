@@ -201,3 +201,7 @@ src-tauri/binaries/
 
 # Backend vendor dependencies (installed by CI/CD during build)
 backend/vendor/
+
+# Tauri Updater Keys
+*.key
+*.key.pub

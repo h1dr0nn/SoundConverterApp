@@ -170,6 +170,8 @@ jobs:
         shell: bash
         env:
           CI: true
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: |
           # Retry mechanism for macOS DMG creation (handles XProtectBehaviorService issues)
           if [[ "${{ matrix.platform }}" == macos* ]]; then
@@ -340,7 +342,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
 
           # Copy binary
-          Copy-Item "src-tauri\target\release\harmonixse.exe" "$portableDir\HarmonixSE.exe"
+          $exe = Join-Path "src-tauri\target\release" "Harmonix SE.exe"
+          if (-not (Test-Path $exe)) {
+              $exe = Join-Path "src-tauri\target\release" "harmonixse.exe"
+          }
+          if (Test-Path $exe) {
+              Copy-Item $exe "$portableDir\HarmonixSE.exe"
+          } else {
+              Write-Host "❌ Binary not found: $exe"
+              exit 1
+          }
 
           # Copy bundled binaries (Python + FFmpeg)
           if (Test-Path "src-tauri\binaries") {
